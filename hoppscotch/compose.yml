@@ -1,6 +1,6 @@
 services:
   hoppscotch:
-    image: hoppscotch/hoppscotch-aio:latest
+    image: hoppscotch/hoppscotch:latest
     container_name: hoppscotch
     ports:
       - "${HOPPSCOTCH_PORT:-3100}:3100"
