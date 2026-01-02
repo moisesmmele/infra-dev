@@ -1,0 +1,23 @@
+# Credentials and Environment
+.env
+
+# Data directories (bind mounts)
+/portainer/data/
+/cloudbeaver/data/
+/redis-insight/data/
+/mailpit/data/
+/npm/data/
+/npm/letsencrypt/
+/technitium/config/
+/technitium/data/
+/homepage/config/
+# Keep example config files if they exist, but ignore real config if it contains secrets or state
+!/homepage/config/demo_settings.yaml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/

@@ -1,0 +1,9 @@
+include:
+  - portainer/compose.yml
+  - cloudbeaver/compose.yml
+  - redis-insight/compose.yml
+  - mailpit/compose.yml
+  - hoppscotch/compose.yml
+  - npm/compose.yml
+  - technitium/compose.yml
+  - homepage/compose.yml

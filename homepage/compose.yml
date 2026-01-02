@@ -1,0 +1,17 @@
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    ports:
+      - "${HOMEPAGE_PORT:-3000}:3000"
+    volumes:
+      - ./config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - dev_net
+
+networks:
+  dev_net:
+    external: true
+    name: ${NETWORK_NAME:-dev-net}

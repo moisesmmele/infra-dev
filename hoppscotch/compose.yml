@@ -1,0 +1,14 @@
+services:
+  hoppscotch:
+    image: hoppscotch/hoppscotch-aio:latest
+    container_name: hoppscotch
+    ports:
+      - "${HOPPSCOTCH_PORT:-3100}:3100"
+    restart: unless-stopped
+    networks:
+      - dev_net
+
+networks:
+  dev_net:
+    external: true
+    name: ${NETWORK_NAME:-dev-net}

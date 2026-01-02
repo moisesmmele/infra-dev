@@ -1,0 +1,16 @@
+services:
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: redis-insight
+    ports:
+      - "${REDIS_INSIGHT_PORT:-5540}:5540"
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    networks:
+      - dev_net
+
+networks:
+  dev_net:
+    external: true
+    name: ${NETWORK_NAME:-dev-net}
