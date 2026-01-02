@@ -18,6 +18,7 @@ This repository contains the Docker Compose configuration for a local developmen
 ## Prerequisites
 
 1.  **Docker** and **Docker Compose** installed.
+2.  **mkcert** installed (optional, for SSL generation).
 
 ## Getting Started
 
@@ -44,8 +45,9 @@ This project uses a modular setup system to prepare the environment for each ser
 
 The root `setup.sh` script automates the initialization process by:
 1.  Creating the external network (`dev-net`) if it doesn't exist.
-2.  Scanning all service subdirectories (e.g., `./cloudbeaver`, `./technitium`).
-3.  Executing the `setup.sh` script inside each directory if found.
+2.  **Generating SSL certificates** via `mkcert` if `DNS_ZONE` is set in `.env`. Certificates are stored in `certs/` (ignored by git).
+3.  Scanning all service subdirectories (e.g., `./cloudbeaver`, `./technitium`).
+4.  Executing the `setup.sh` script inside each directory if found.
 
 ### Service-Specific Setup
 
@@ -86,4 +88,11 @@ You can create a `setup.sh` file in any service directory to handle pre-launch t
      # Note: chmod/chown usually requires sudo or being the owner.
      # If running strictly as user, ensure the directory is writable.
      chmod 777 pgadmin_data
+     ```
+
+4.  **Advanced Network & System Configuration**:
+     Scripts can also handle host-level networking (e.g., setting static IPs) if minimal dependencies like `sudo` are available.
+
+     *Example: `technitium/setup.sh`*
+     Configures a static IP and gateway for the host if `BASE_DNS`, `STATIC_IP`, and `GATEWAY_IP` are provided in `.env`.
      ```
