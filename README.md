@@ -18,10 +18,6 @@ This repository contains the Docker Compose configuration for a local developmen
 ## Prerequisites
 
 1.  **Docker** and **Docker Compose** installed.
-2.  **External Network**: You must create the `dev-net` network before starting the stack.
-    ```bash
-    docker network create dev-net
-    ```
 
 ## Getting Started
 
