@@ -3,14 +3,16 @@
 # This script configures the host to use a static IP and sets the DNS configuration.
 # It reads configuration from a ../.env file.
 
-# TODO: This is very brittle. Need to improve.
+# Determine script directory for robust path resolution
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/../.env"
 
 # Load environment variables
-if [ -f "../.env" ]; then
+if [ -f "$ENV_FILE" ]; then
     # Export variables from .env, filtering out comments
-    export $(grep -v '^#' ../.env | xargs)
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
 else
-    echo "Error: ../.env file not found."
+    echo "Error: .env file not found at $ENV_FILE"
     exit 1
 fi
 
