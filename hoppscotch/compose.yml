@@ -4,6 +4,23 @@ services:
     container_name: hoppscotch
     ports:
       - "${HOPPSCOTCH_PORT:-3100}:3100"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-hoppscotch}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - dev_net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: hoppscotch_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-hoppscotch}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - dev_net
