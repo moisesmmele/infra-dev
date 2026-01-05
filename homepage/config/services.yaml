@@ -1,0 +1,59 @@
+- Infrastructure:
+    - Portainer:
+        icon: portainer.png
+        href: http://localhost:9000
+        description: Container Management
+        server: my-docker
+        container: portainer
+        widget:
+          type: portainer
+          url: http://portainer:9000
+          env: 2
+          key: your-api-key # Optional: Add API key for widget stats
+    - Technitium DNS:
+        icon: technitium-dns.png
+        href: http://localhost:5380
+        description: DNS Server & Ad Blocker
+        server: my-docker
+        container: technitium
+        widget:
+          type: technitium
+          url: http://technitium:5380
+          password: admin # Default password, change if needed
+    - Nginx Proxy Manager:
+        icon: nginx-proxy-manager.png
+        href: http://localhost:81
+        description: Reverse Proxy Manager
+        server: my-docker
+        container: npm
+        widget:
+          type: npm
+          url: http://npm:81
+          username: admin@example.com
+          password: changeme
+
+- Development:
+    - CloudBeaver:
+        icon: dbeaver.png
+        href: http://localhost:8978
+        description: Database Manager
+        server: my-docker
+        container: cloudbeaver
+    - Redis Insight:
+        icon: redis.png
+        href: http://localhost:5540
+        description: Redis GUI
+        server: my-docker
+        container: redis-insight
+    - Mailpit:
+        icon: mailpit.png
+        href: http://localhost:8025
+        description: Email Testing
+        server: my-docker
+        container: mailpit
+    - Hoppscotch:
+        icon: hoppscotch.png
+        href: http://localhost:3100
+        description: API Testing
+        server: my-docker
+        container: hoppscotch
