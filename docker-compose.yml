@@ -3,20 +3,18 @@ include:
   - cloudbeaver/compose.yml
   - redis-insight/compose.yml
   - mailpit/compose.yml
-#  - hoppscotch/compose.yml
+  #  - hoppscotch/compose.yml
   - npm/compose.yml
   - technitium/compose.yml
   - homepage/compose.yml
 
 services:
   init:
-    image: curlimages/curl:latest
-    user: root
-    entrypoint: /bin/sh
-    command: -c "apk add --no-cache jq && /init.sh"
+    build: ./init
     volumes:
-      - ./init.sh:/init.sh
+      - ./init/init.sh:/init.sh
       - ./.env:/.env
+      - ./certs:/certs
     depends_on:
       portainer:
         condition: service_healthy
