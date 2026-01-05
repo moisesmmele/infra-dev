@@ -23,25 +23,7 @@ else
     echo "Network '$NETWORK_NAME' already exists."
 fi
 
-# SSL Certificate Generation
-if [ -n "$DNS_ZONE" ]; then
-    echo "Checking for mkcert..."
-    if command -v mkcert >/dev/null 2>&1; then
-        echo "mkcert found. Generating SSL certificates for $DNS_ZONE..."
-        mkdir -p certs
-        if [ ! -f "certs/$DNS_ZONE.pem" ] || [ ! -f "certs/$DNS_ZONE-key.pem" ]; then
-             mkcert -install
-             mkcert -cert-file "certs/$DNS_ZONE.pem" -key-file "certs/$DNS_ZONE-key.pem" "$DNS_ZONE" "*.$DNS_ZONE"
-             echo "Certificates generated: certs/$DNS_ZONE.pem, certs/$DNS_ZONE-key.pem"
-        else
-             echo "Certificates already exist for $DNS_ZONE in certs/ directory."
-        fi
-    else
-        echo "Warning: mkcert not found. Skipping SSL certificate generation."
-    fi
-else
-    echo "DNS_ZONE not set in .env. Skipping SSL certificate generation."
-fi
+
 
 # Find all setup.sh files in immediate subdirectories (max depth 2)
 # We exclude the current directory to avoid running itself recursively if logic fails, 

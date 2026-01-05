@@ -1,8 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 
-# --- 1. Dependencies & Env Setup ---
+# preflight checks
 
 # Check for required tools
+if ! command -v bash >/dev/null 2>&1; then
+    echo "Error: 'bash' is not installed. Please install it."
+    exit 1
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
     echo "Error: 'jq' is not installed. Please install it."
     exit 1
@@ -18,22 +23,17 @@ if [ -f /.env ]; then
     . /.env
 fi
 
-# Configuration
+# General Configuration
 DNS_API_BASE="http://${TECHNITIUM_CONTAINER_NAME}:${DNS_WEB_PORT:-5380}/api"
 NPM_API_BASE="http://${NPM_CONTAINER_NAME}:${NPM_ADMIN_PORT:-81}/api"
 DNS_ZONE="${DNS_ZONE:-dev.local}"
 
-# Credentials
-DNS_USER="admin"
-DNS_PASS="admin"
-NPM_USER="admin@example.com"
-NPM_PASS="changeme"
+# NPM Credentials
 NPM_ADMIN_EMAIL="${NPM_ADMIN_EMAIL:-admin@example.com}"
 NPM_ADMIN_PASSWORD="${NPM_ADMIN_PASSWORD:-changeme}"
 NPM_ADMIN_NAME="${NPM_ADMIN_NAME:-Administrator}"
 NPM_ADMIN_NICKNAME="${NPM_ADMIN_NICKNAME:-Admin}"
 
-# Helper: Wait for HTTP 200 OK
 # Validate required variables
 if [ -z "$TECHNITIUM_CONTAINER_NAME" ]; then
     echo "Error: TECHNITIUM_CONTAINER_NAME is not set."
@@ -44,7 +44,7 @@ if [ -z "$NPM_CONTAINER_NAME" ]; then
     exit 1
 fi
 
-# Helper: Wait for HTTP 200 OK
+# Helper func: Wait for HTTP 200 OK
 wait_for_url() {
     url="$1"
     echo "Waiting for $url to be ready..."
@@ -73,20 +73,56 @@ wait_for_url() {
     return 1
 }
 
-# --- 2. Technitium DNS Configuration ---
+# SSL Certificate Generation
+if [ -n "$DNS_ZONE" ]; then
+    echo "Checking for mkcert..."
+    if command -v mkcert >/dev/null 2>&1; then
+        # Set CAROOT to the mounted volume so the Root CA is persisted
+        export CAROOT=/certs
+        echo "mkcert found. CAROOT set to $CAROOT"
+        
+        if [ ! -f "/certs/${DNS_ZONE}.pem" ] || [ ! -f "/certs/${DNS_ZONE}-key.pem" ]; then
+             echo "Generating SSL certificates for $DNS_ZONE..."
+             mkcert -install
+             mkcert -cert-file "/certs/${DNS_ZONE}.pem" -key-file "/certs/${DNS_ZONE}-key.pem" "$DNS_ZONE" "*.$DNS_ZONE"
+             echo "Certificates generated."
+        else
+             echo "Certificates already exist for $DNS_ZONE."
+        fi
+    else
+        echo "Warning: mkcert not installed in container. Skipping generation."
+    fi
 
-# Technitium's API might return 200 even if not fully loaded, but let's try basic connection
+    # Copy Root CA to public folder for serving
+    echo "Preparing CA certificate for download..."
+    mkdir -p /certs/public
+    if [ -f "$CAROOT/rootCA.pem" ]; then
+        cp "$CAROOT/rootCA.pem" /certs/public/root-ca.crt
+        chmod 644 /certs/public/root-ca.crt
+        echo "Copied rootCA.pem to /certs/public/root-ca.crt"
+    fi
+else
+    echo "DNS_ZONE not set. Skipping SSL generation."
+fi
+
+
+# Technitium DNS
+
+# check if Technitium is ready
 wait_for_url "${DNS_API_BASE}/user/login?user=${DNS_USER}&pass=${DNS_PASS}" || exit 1
 
 echo "Configuring Technitium DNS..."
+
+# Get Token
 DNS_TOKEN=$(curl -s -X POST "${DNS_API_BASE}/user/login?user=${DNS_USER}&pass=${DNS_PASS}" | jq -r '.token')
 
+# Validate Token; exit if null
 if [ -z "$DNS_TOKEN" ] || [ "$DNS_TOKEN" = "null" ]; then
     echo "FATAL: Failed to login to Technitium DNS."
     exit 1
 fi
 
-# Check Zone
+# Check DNS Zone
 ZONE_EXISTS=$(curl -s -X GET "${DNS_API_BASE}/zones/list?token=${DNS_TOKEN}&pageNumber=1&recordsPerPage=100" | jq -r ".response.zones[] | select(.name == \"${DNS_ZONE}\") | .name")
 
 if [ "$ZONE_EXISTS" = "$DNS_ZONE" ]; then
@@ -96,7 +132,7 @@ else
      curl -s -X POST "${DNS_API_BASE}/zones/create?token=${DNS_TOKEN}&zone=${DNS_ZONE}&type=Primary" > /dev/null
 fi
 
-# Check Wildcard Record
+# Check Wildcard Record for DNS Zone
 if [ -n "$STATIC_IP" ]; then
     TARGET_IP=${STATIC_IP%/*}
     WILDCARD_DOMAIN="*.${DNS_ZONE}"
@@ -115,48 +151,16 @@ else
     echo "Warning: STATIC_IP not set. Skipping wildcard record creation."
 fi
 
-# --- 3. Nginx Proxy Manager Configuration ---
+# Nginx Proxy Manager
 
-# Wait for NPM (It has a specific /api/schema endpoint usually available, or just check root)
-# Note: NPM takes a while to boot DB.
+# check if NPM is ready
 wait_for_url "${NPM_API_BASE}/" || exit 1
 
 echo "Configuring Nginx Proxy Manager..."
 
-# Helper to get token
-get_npm_token() {
-    user="$1"
-    pass="$2"
-    echo "Debug: Authenticating as user: $user" >&2
-    
-    # Capture http code and body
-    # Using a temporary file for body to handle multiline safely if needed, or just variable.
-    # Simple variable capture with separate status line:
-    response=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/tokens" \
-        -H "Content-Type: application/json" \
-        -d "$(jq -n --arg u "$user" --arg p "$pass" '{identity: $u, secret: $p}')")
-    
-    # Extract body and status
-    # Note: This assumes the body does not end with a newline that we care about preserving strictly vs the appended status
-    body=$(echo "$response" | sed '$d')
-    status=$(echo "$response" | tail -n 1)
 
-    echo "Debug: API Response Status: $status" >&2
-    echo "Debug: API Response Body: $body" >&2
-
-    if [ "$status" = "200" ]; then
-        token=$(echo "$body" | jq -r '.token')
-        if [ "$token" = "null" ]; then
-             echo "Debug: Token is null in response" >&2
-        fi
-        echo "$token"
-    else
-        echo "null"
-    fi
-}
-
-# 0. Attempt to Create User (only works if DB is empty)
-echo "Attempting to create NPM user (if DB is empty)..."
+# Create User (only works if DB is empty)
+echo "Creating NPM user..."
 CREATE_PAYLOAD=$(jq -n \
     --arg name "$NPM_ADMIN_NAME" \
     --arg email "$NPM_ADMIN_EMAIL" \
@@ -168,9 +172,12 @@ curl -s -X POST "${NPM_API_BASE}/users" \
     -H "Content-Type: application/json" \
     -d "$CREATE_PAYLOAD" > /dev/null
 
-# 1. Try to login with Target Credentials first (in case already set)
-echo "Attempting login with TARGET credentials..."
-NPM_TOKEN=$(get_npm_token "$NPM_ADMIN_EMAIL" "$NPM_ADMIN_PASSWORD")
+# Login with NPM Credentials
+echo "Logging in with NPM credentials..."
+NPM_TOKEN=$(curl -s -X POST "${NPM_API_BASE}/tokens" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg u "$NPM_ADMIN_EMAIL" --arg p "$NPM_ADMIN_PASSWORD" '{identity: $u, secret: $p}')" \
+    | jq -r '.token')
 
 if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
     echo "FATAL: Failed to login to NPM."
@@ -208,7 +215,7 @@ if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
     fi
 fi
 
-# Function to Create OR Update Host
+# Function to Create Proxy Host
 create_proxy_host() {
     CONTAINER=$1
     PORT=$2
@@ -261,23 +268,53 @@ create_proxy_host() {
         echo "Proxy host for $DOMAIN already exists. Skipping."
     else
         echo "Creating new host: $DOMAIN..."
-        curl -s -X POST "${NPM_API_BASE}/nginx/proxy-hosts" \
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/nginx/proxy-hosts" \
             -H "Authorization: Bearer ${NPM_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD" > /dev/null
+            -d "$PAYLOAD")
+
+        BODY=$(echo "$RESPONSE" | sed '$d')
+        STATUS=$(echo "$RESPONSE" | tail -n 1)
+
+        if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
+            echo "Success: Created host $DOMAIN (Status: $STATUS)"
+            sleep 1
+        else
+            echo "Error: Failed to create host $DOMAIN. Status: $STATUS"
+            echo "Response: $BODY"
+        fi
     fi
 }
 
-# --- 4. Service Definitions ---
+# Service Definitions
 
-# Only run if vars exist to prevent errors
-[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTPS}" "$CERT_ID" "https"
-#[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTP}" "$CERT_ID" "http"
-[ -n "$CLOUDBEAVER_CONTAINER_NAME" ] && create_proxy_host "${CLOUDBEAVER_CONTAINER_NAME}" "${CLOUDBEAVER_PORT}" "$CERT_ID"
-[ -n "$REDIS_INSIGHT_CONTAINER_NAME" ] && create_proxy_host "${REDIS_INSIGHT_CONTAINER_NAME}" "${REDIS_INSIGHT_PORT}" "$CERT_ID"
-[ -n "$MAILPIT_CONTAINER_NAME" ] && create_proxy_host "${MAILPIT_CONTAINER_NAME}" "${MAILPIT_WEB_PORT}" "$CERT_ID"
-[ -n "$NPM_CONTAINER_NAME" ] && create_proxy_host "${NPM_CONTAINER_NAME}" "${NPM_WEB_PORT}" "$CERT_ID"
-[ -n "$TECHNITIUM_CONTAINER_NAME" ] && create_proxy_host "${TECHNITIUM_CONTAINER_NAME}" "${TECHNITIUM_WEB_PORT}" "$CERT_ID"
-[ -n "$HOMEPAGE_CONTAINER_NAME" ] && create_proxy_host "${HOMEPAGE_CONTAINER_NAME}" "${HOMEPAGE_PORT}" "$CERT_ID"
+services=(
+    "$PORTAINER_CONTAINER_NAME;$PORTAINER_WEB_PORT_HTTPS;$CERT_ID;https"
+    "$CLOUDBEAVER_CONTAINER_NAME;$CLOUDBEAVER_PORT;$CERT_ID;http"
+    "$REDIS_INSIGHT_CONTAINER_NAME;$REDIS_INSIGHT_PORT;$CERT_ID;http"
+    "$MAILPIT_CONTAINER_NAME;$MAILPIT_WEB_PORT;$CERT_ID;http"
+    "$NPM_CONTAINER_NAME;$NPM_WEB_PORT;$CERT_ID;http"
+    "$TECHNITIUM_CONTAINER_NAME;$TECHNITIUM_WEB_PORT;$CERT_ID;http"
+    "$HOMEPAGE_CONTAINER_NAME;$HOMEPAGE_PORT;$CERT_ID;http"
+    "cert-server;80;$CERT_ID;http"
+)
 
-echo "Initialization complete."
+for service in "${services[@]}"; do
+    # Split the string into a temporary array named 'service_array'
+    IFS=';' read -r -a service_array <<< "$service"
+
+    # Map to readable names (optional, but makes debugging easier)
+    name="${service_array[0]}"
+    port="${service_array[1]}"
+    cert="${service_array[2]}"
+    proto="${service_array[3]}"
+
+    # 2. FIX: Check if the CURRENT name is valid, not the global Portainer variable
+    if [ -n "$name" ]; then 
+        create_proxy_host "$name" "$port" "$cert" "$proto"
+    fi
+
+    echo "Created proxy host for $name"
+    echo "Sleeping for 2 seconds... (to ensure NPM has time to process... gimmicky i know)"
+    sleep 2
+done
