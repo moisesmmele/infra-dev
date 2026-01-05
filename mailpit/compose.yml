@@ -7,6 +7,8 @@ services:
     environment:
       - MP_DATABASE=/data/mailpit.db
     restart: unless-stopped
+    ports:
+      - "${MAILPIT_PORT}:8025"
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8025" ]
       interval: 30s

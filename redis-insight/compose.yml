@@ -2,6 +2,8 @@ services:
   redis-insight:
     image: redis/redisinsight:latest
     container_name: ${REDIS_INSIGHT_CONTAINER_NAME}
+    ports:
+      - "${REDIS_INSIGHT_PORT}:5540"
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:5540/api/health" ]
