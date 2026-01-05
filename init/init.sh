@@ -30,6 +30,8 @@ NPM_USER="admin@example.com"
 NPM_PASS="changeme"
 NPM_ADMIN_EMAIL="${NPM_ADMIN_EMAIL:-admin@example.com}"
 NPM_ADMIN_PASSWORD="${NPM_ADMIN_PASSWORD:-changeme}"
+NPM_ADMIN_NAME="${NPM_ADMIN_NAME:-Administrator}"
+NPM_ADMIN_NICKNAME="${NPM_ADMIN_NICKNAME:-Admin}"
 
 # Helper: Wait for HTTP 200 OK
 # Validate required variables
@@ -134,70 +136,29 @@ get_npm_token() {
     fi
 }
 
+# 0. Attempt to Create User (only works if DB is empty)
+echo "Attempting to create NPM user (if DB is empty)..."
+CREATE_PAYLOAD=$(jq -n \
+    --arg name "$NPM_ADMIN_NAME" \
+    --arg email "$NPM_ADMIN_EMAIL" \
+    --arg nick "$NPM_ADMIN_NICKNAME" \
+    --arg pass "$NPM_ADMIN_PASSWORD" \
+    '{name: $name, email: $email, nickname: $nick, auth: {type: "password", secret: $pass}}')
+
+curl -s -X POST "${NPM_API_BASE}/users" \
+    -H "Content-Type: application/json" \
+    -d "$CREATE_PAYLOAD" > /dev/null
+
 # 1. Try to login with Target Credentials first (in case already set)
 echo "Attempting login with TARGET credentials..."
 NPM_TOKEN=$(get_npm_token "$NPM_ADMIN_EMAIL" "$NPM_ADMIN_PASSWORD")
 
-# 2. If failed, try Default Credentials
 if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
-    echo "Target login failed. Attempting login with DEFAULT credentials..."
-    NPM_TOKEN=$(get_npm_token "$NPM_USER" "$NPM_PASS")
-    
-    if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
-        echo "FATAL: Failed to login to NPM with both partial and default credentials."
-        exit 1
-    fi
-
-    echo "Logged in with DEFAULT credentials. Updating admin account to TARGET credentials..."
-    
-    # Update Email/Name for User 1 (Admin)
-    # Note: NPM User ID 1 is the default admin.
-    # Update Admin Email/Name
-    echo "Updating Admin Email/Name..."
-    UPDATE_USER_RAW=$(curl -s -w "\n%{http_code}" -X PUT "${NPM_API_BASE}/users/1" \
-        -H "Authorization: Bearer ${NPM_TOKEN}" \
-        -H "Content-Type: application/json" \
-        -d "$(jq -n --arg email "$NPM_ADMIN_EMAIL" --arg name "Administrator" '{name: $name, email: $email}')")
-    
-    UPDATE_USER_RESP=$(echo "$UPDATE_USER_RAW" | sed '$d')
-    UPDATE_USER_STATUS=$(echo "$UPDATE_USER_RAW" | tail -n 1)
-
-    echo "Debug: Update User Response Status: $UPDATE_USER_STATUS" >&2
-    echo "Debug: Update User Response Body: $UPDATE_USER_RESP" >&2
-    
-    # Check if update was successful (basic check if email is in response)
-    if echo "$UPDATE_USER_RESP" | grep -q "$NPM_ADMIN_EMAIL"; then
-        echo "Admin email updated successfully."
-    else
-        echo "Error updating email: $UPDATE_USER_RESP"
-        # Continue anyway, might just be password update needed if email was same
-    fi
-
-    # Update Password for User 1
-    echo "Updating Admin Password..."
-    UPDATE_PASS_RAW=$(curl -s -w "\n%{http_code}" -X PUT "${NPM_API_BASE}/users/1/auth" \
-        -H "Authorization: Bearer ${NPM_TOKEN}" \
-        -H "Content-Type: application/json" \
-        -d "$(jq -n --arg secret "$NPM_ADMIN_PASSWORD" --arg current "$NPM_PASS" '{type: "password", secret: $secret, current: $current}')")
-
-    UPDATE_PASS_RESP=$(echo "$UPDATE_PASS_RAW" | sed '$d')
-    UPDATE_PASS_STATUS=$(echo "$UPDATE_PASS_RAW" | tail -n 1)
-
-    echo "Debug: Update Password Response Status: $UPDATE_PASS_STATUS" >&2
-    echo "Debug: Update Password Response Body: $UPDATE_PASS_RESP" >&2
-        
-    # Refresh Token with NEW credentials
-    echo "Refreshing token with NEW credentials..."
-    NPM_TOKEN=$(get_npm_token "$NPM_ADMIN_EMAIL" "$NPM_ADMIN_PASSWORD")
-    
-    if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
-        echo "FATAL: Failed to login with NEW credentials after update."
-        exit 1
-    fi
-    echo "Successfully updated default admin account and logged in."
-else
-    echo "Logged in successfully with TARGET credentials."
+    echo "FATAL: Failed to login to NPM."
+    exit 1
 fi
+
+echo "Logged in successfully."
 
 # Upload SSL
 CERT_ID=0
