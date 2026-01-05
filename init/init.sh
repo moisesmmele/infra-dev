@@ -96,6 +96,25 @@ else
      curl -s -X POST "${DNS_API_BASE}/zones/create?token=${DNS_TOKEN}&zone=${DNS_ZONE}&type=Primary" > /dev/null
 fi
 
+# Check Wildcard Record
+if [ -n "$STATIC_IP" ]; then
+    TARGET_IP=${STATIC_IP%/*}
+    WILDCARD_DOMAIN="*.${DNS_ZONE}"
+    
+    # URL encode the domain for the query might be safer, but usually curl handles verify simple ones. Check if jq handles it.
+    # We filter client-side with jq, so we list all records.
+    RECORD_EXISTS=$(curl -s -X GET "${DNS_API_BASE}/zones/records/list?token=${DNS_TOKEN}&zone=${DNS_ZONE}&pageNumber=1&recordsPerPage=1000" | jq -r ".response.records[] | select(.name == \"${WILDCARD_DOMAIN}\") | .name")
+
+    if [ "$RECORD_EXISTS" = "$WILDCARD_DOMAIN" ]; then
+         echo "Wildcard record '$WILDCARD_DOMAIN' already exists."
+    else
+         echo "Creating Wildcard record '$WILDCARD_DOMAIN' pointing to $TARGET_IP..."
+         curl -s -X POST "${DNS_API_BASE}/zones/records/add?token=${DNS_TOKEN}&domain=${WILDCARD_DOMAIN}&type=A&value=${TARGET_IP}&zone=${DNS_ZONE}" > /dev/null
+    fi
+else
+    echo "Warning: STATIC_IP not set. Skipping wildcard record creation."
+fi
+
 # --- 3. Nginx Proxy Manager Configuration ---
 
 # Wait for NPM (It has a specific /api/schema endpoint usually available, or just check root)
@@ -251,7 +270,7 @@ create_proxy_host() {
 
 # Only run if vars exist to prevent errors
 [ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTPS}" "$CERT_ID" "https"
-[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTP}" "$CERT_ID" "http"
+#[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTP}" "$CERT_ID" "http"
 [ -n "$CLOUDBEAVER_CONTAINER_NAME" ] && create_proxy_host "${CLOUDBEAVER_CONTAINER_NAME}" "${CLOUDBEAVER_PORT}" "$CERT_ID"
 [ -n "$REDIS_INSIGHT_CONTAINER_NAME" ] && create_proxy_host "${REDIS_INSIGHT_CONTAINER_NAME}" "${REDIS_INSIGHT_PORT}" "$CERT_ID"
 [ -n "$MAILPIT_CONTAINER_NAME" ] && create_proxy_host "${MAILPIT_CONTAINER_NAME}" "${MAILPIT_WEB_PORT}" "$CERT_ID"
