@@ -1,7 +1,10 @@
 FROM alpine:latest
 
 # Install dependencies
-RUN apk add --no-cache bash curl jq mkcert nss --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
+RUN apk add --no-cache bash curl jq nss
+
+# Install mkcert from the testing repository
+RUN apk add --no-cache mkcert --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing
 
 # Set working directory
 WORKDIR /app
