@@ -3,6 +3,7 @@ include:
   - cloudbeaver/compose.yml
   - redis-insight/compose.yml
   - mailpit/compose.yml
+  # hoppscotch temporarily disabled
   #  - hoppscotch/compose.yml
   - npm/compose.yml
   - technitium/compose.yml
@@ -16,12 +17,14 @@ services:
       - ./.env:/.env
       - ./certs:/certs
     depends_on:
+      # Temporary "started" condition until healthcheck is fixed
       portainer:
-        condition: service_healthy
+        condition: service_started
       cloudbeaver:
         condition: service_healthy
+      # Temporary "started" condition until healthcheck is fixed
       redis-insight:
-        condition: service_healthy
+        condition: service_started
       mailpit:
         condition: service_healthy
       npm:
