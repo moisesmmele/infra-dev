@@ -30,18 +30,42 @@ NPM_USER="admin@example.com"
 NPM_PASS="changeme"
 
 # Helper: Wait for HTTP 200 OK
+# Validate required variables
+if [ -z "$TECHNITIUM_CONTAINER_NAME" ]; then
+    echo "Error: TECHNITIUM_CONTAINER_NAME is not set."
+    exit 1
+fi
+if [ -z "$NPM_CONTAINER_NAME" ]; then
+    echo "Error: NPM_CONTAINER_NAME is not set."
+    exit 1
+fi
+
+# Helper: Wait for HTTP 200 OK
 wait_for_url() {
-    echo "Waiting for $1 to be ready..."
-    max_retries=30
+    url="$1"
+    echo "Waiting for $url to be ready..."
+    max_retries=60
     count=0
     while [ $count -lt $max_retries ]; do
-        if curl -s --head "$1" | grep "200 OK" > /dev/null; then
+        # Use curl to get HTTP code only, silent output
+        status_code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+        
+        if [ "$status_code" = "200" ]; then
+            echo "Success: $url is ready (HTTP 200)."
             return 0
         fi
+        
+        if [ $((count % 5)) -eq 0 ]; then
+            echo "Wait attempt $((count+1))/$max_retries. Status: $status_code"
+        fi
+        
         sleep 2
         count=$((count + 1))
     done
-    echo "Timeout waiting for $1"
+    
+    echo "Timeout waiting for $url. Last status: $status_code"
+    # Try one verbose curl to show error detail to logs before failing
+    curl -v "$url"
     return 1
 }
 
