@@ -243,6 +243,7 @@ create_proxy_host() {
         --argjson ssl "$SSL_FORCED" \
         --argjson http2 "$HTTP2" \
         --argjson hsts "$HSTS" \
+        --argjson enabled true \
         '{
             domain_names: [$domain],
             forward_scheme: $scheme,
@@ -259,7 +260,8 @@ create_proxy_host() {
             http2_support: $http2,
             hsts_enabled: $hsts,
             hsts_subdomains: false,
-            ssl_forced: $ssl
+            ssl_forced: $ssl,
+            enabled: $enabled
         }')
 
     # Check existence
