@@ -1,10 +1,13 @@
 services:
   redis-insight:
     image: redis/redisinsight:latest
-    container_name: redis-insight
-    ports:
-      - "${REDIS_INSIGHT_PORT:-5540}:5540"
+    container_name: ${REDIS_INSIGHT_CONTAINER_NAME}
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:5540/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     volumes:
       - ./data:/data
     networks:
@@ -13,4 +16,4 @@ services:
 networks:
   dev_net:
     external: true
-    name: ${NETWORK_NAME:-dev-net}
+    name: ${NETWORK_NAME}

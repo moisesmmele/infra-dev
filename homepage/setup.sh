@@ -2,3 +2,4 @@
 # Homepage setup
 
 mkdir -p config
+

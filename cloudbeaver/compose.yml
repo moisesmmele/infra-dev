@@ -1,16 +1,19 @@
 services:
   cloudbeaver:
     image: dbeaver/cloudbeaver:latest
-    container_name: cloudbeaver
-    ports:
-      - "${CLOUDBEAVER_PORT:-8978}:8978"
+    container_name: ${CLOUDBEAVER_CONTAINER_NAME}
     volumes:
       - ./data:/opt/cloudbeaver/workspace
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8978/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - dev_net
 
 networks:
   dev_net:
     external: true
-    name: ${NETWORK_NAME:-dev-net}
+    name: ${NETWORK_NAME}

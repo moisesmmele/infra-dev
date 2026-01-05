@@ -1,24 +1,28 @@
 services:
   technitium:
     image: technitium/dns-server:latest
-    container_name: technitium
+    container_name: ${TECHNITIUM_CONTAINER_NAME}
     # Must set DNS_SERVER_DOMAIN_ADDRESS to the IP address of the host machine or use 'host' network mode if strictly needed,
     # but sticking to bridge (default) since instructions said "No compose managed networks" meaning "assume we have a network called dev-net",
     # which usually implies we attach to it.
     ports:
-      - "${DNS_UDP_PORT:-53}:53/udp"
-      - "${DNS_TCP_PORT:-53}:53/tcp"
-      - "${DNS_WEB_PORT:-5380}:5380"
+      - "53:53/udp"
+      - "53:53/tcp"
     volumes:
       - ./config:/etc/dns
       - ./data:/var/lib/dns
     environment:
       - DNS_SERVER_DOMAIN_ADDRESS=0.0.0.0
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:5380 || exit 1" ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     networks:
       - dev_net
 
 networks:
   dev_net:
     external: true
-    name: ${NETWORK_NAME:-dev-net}
+    name: ${NETWORK_NAME}

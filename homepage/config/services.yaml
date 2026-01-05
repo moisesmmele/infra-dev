@@ -1,59 +1,59 @@
 - Infrastructure:
     - Portainer:
         icon: portainer.png
-        href: http://localhost:9000
+        href: {{HOMEPAGE_VAR_PORTAINER_URL}}
         description: Container Management
         server: my-docker
         container: portainer
         widget:
           type: portainer
-          url: http://portainer:9000
+          url: {{HOMEPAGE_VAR_PORTAINER_URL}}
           env: 2
           key: your-api-key # Optional: Add API key for widget stats
     - Technitium DNS:
         icon: technitium-dns.png
-        href: http://localhost:5380
+        href: {{HOMEPAGE_VAR_TECHNITIUM_URL}}
         description: DNS Server & Ad Blocker
         server: my-docker
         container: technitium
         widget:
           type: technitium
-          url: http://technitium:5380
+          url: {{HOMEPAGE_VAR_TECHNITIUM_URL}}
           password: admin # Default password, change if needed
     - Nginx Proxy Manager:
         icon: nginx-proxy-manager.png
-        href: http://localhost:81
+        href: {{HOMEPAGE_VAR_NPM_URL}}
         description: Reverse Proxy Manager
         server: my-docker
         container: npm
         widget:
           type: npm
-          url: http://npm:81
+          url: {{HOMEPAGE_VAR_NPM_URL}}
           username: admin@example.com
           password: changeme
 
 - Development:
     - CloudBeaver:
         icon: dbeaver.png
-        href: http://localhost:8978
+        href: {{HOMEPAGE_VAR_CLOUDBEAVER_URL}}
         description: Database Manager
         server: my-docker
         container: cloudbeaver
     - Redis Insight:
         icon: redis.png
-        href: http://localhost:5540
+        href: {{HOMEPAGE_VAR_REDIS_INSIGHT_URL}}
         description: Redis GUI
         server: my-docker
         container: redis-insight
     - Mailpit:
         icon: mailpit.png
-        href: http://localhost:8025
+        href: {{HOMEPAGE_VAR_MAILPIT_URL}}
         description: Email Testing
         server: my-docker
         container: mailpit
     - Hoppscotch:
         icon: hoppscotch.png
-        href: http://localhost:3100
+        href: {{HOMEPAGE_VAR_HOPPSCTOCH_URL}}
         description: API Testing
         server: my-docker
         container: hoppscotch

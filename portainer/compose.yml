@@ -1,18 +1,21 @@
 services:
   portainer:
     image: portainer/portainer-ce:latest
-    container_name: portainer
+    container_name: ${PORTAINER_CONTAINER_NAME}
     command: -H unix:///var/run/docker.sock
-    ports:
-      - "${PORTAINER_PORT:-9000}:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data:/data
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:9000" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - dev_net
 
 networks:
   dev_net:
     external: true
-    name: ${NETWORK_NAME:-dev-net}
+    name: ${NETWORK_NAME}
