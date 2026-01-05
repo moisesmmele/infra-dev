@@ -174,12 +174,13 @@ create_proxy_host() {
 # --- 4. Service Definitions ---
 
 # Only run if vars exist to prevent errors
-[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_PORT}" "$CERT_ID" "https"
+[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTPS}" "$CERT_ID" "https"
+[ -n "$PORTAINER_CONTAINER_NAME" ] && create_proxy_host "${PORTAINER_CONTAINER_NAME}" "${PORTAINER_WEB_PORT_HTTP}" "$CERT_ID" "http"
 [ -n "$CLOUDBEAVER_CONTAINER_NAME" ] && create_proxy_host "${CLOUDBEAVER_CONTAINER_NAME}" "${CLOUDBEAVER_PORT}" "$CERT_ID"
 [ -n "$REDIS_INSIGHT_CONTAINER_NAME" ] && create_proxy_host "${REDIS_INSIGHT_CONTAINER_NAME}" "${REDIS_INSIGHT_PORT}" "$CERT_ID"
 [ -n "$MAILPIT_CONTAINER_NAME" ] && create_proxy_host "${MAILPIT_CONTAINER_NAME}" "${MAILPIT_WEB_PORT}" "$CERT_ID"
-[ -n "$NPM_CONTAINER_NAME" ] && create_proxy_host "${NPM_CONTAINER_NAME}" "${NPM_ADMIN_PORT}" "$CERT_ID"
-[ -n "$TECHNITIUM_CONTAINER_NAME" ] && create_proxy_host "${TECHNITIUM_CONTAINER_NAME}" "${DNS_WEB_PORT}" "$CERT_ID"
+[ -n "$NPM_CONTAINER_NAME" ] && create_proxy_host "${NPM_CONTAINER_NAME}" "${NPM_WEB_PORT}" "$CERT_ID"
+[ -n "$TECHNITIUM_CONTAINER_NAME" ] && create_proxy_host "${TECHNITIUM_CONTAINER_NAME}" "${TECHNITIUM_WEB_PORT}" "$CERT_ID"
 [ -n "$HOMEPAGE_CONTAINER_NAME" ] && create_proxy_host "${HOMEPAGE_CONTAINER_NAME}" "${HOMEPAGE_PORT}" "$CERT_ID"
 
 echo "Initialization complete."
