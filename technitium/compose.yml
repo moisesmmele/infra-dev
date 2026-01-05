@@ -16,7 +16,7 @@ services:
       - DNS_SERVER_DOMAIN_ADDRESS=0.0.0.0
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:5380 || exit 1" ]
+      test: [ "CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/5380" ]
       interval: 60s
       timeout: 10s
       retries: 3

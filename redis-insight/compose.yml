@@ -6,7 +6,7 @@ services:
       - "${REDIS_INSIGHT_PORT}:5540"
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:5540/api/health" ]
+      test: [ "CMD-SHELL", "wget -q -O /dev/null http://localhost:5540/api/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
