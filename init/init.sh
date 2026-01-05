@@ -106,9 +106,32 @@ echo "Configuring Nginx Proxy Manager..."
 get_npm_token() {
     user="$1"
     pass="$2"
-    curl -s -X POST "${NPM_API_BASE}/tokens" \
+    echo "Debug: Authenticating as user: $user" >&2
+    
+    # Capture http code and body
+    # Using a temporary file for body to handle multiline safely if needed, or just variable.
+    # Simple variable capture with separate status line:
+    response=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/tokens" \
         -H "Content-Type: application/json" \
-        -d "$(jq -n --arg u "$user" --arg p "$pass" '{identity: $u, secret: $p}')" | jq -r '.token'
+        -d "$(jq -n --arg u "$user" --arg p "$pass" '{identity: $u, secret: $p}')")
+    
+    # Extract body and status
+    # Note: This assumes the body does not end with a newline that we care about preserving strictly vs the appended status
+    body=$(echo "$response" | sed '$d')
+    status=$(echo "$response" | tail -n 1)
+
+    echo "Debug: API Response Status: $status" >&2
+    echo "Debug: API Response Body: $body" >&2
+
+    if [ "$status" = "200" ]; then
+        token=$(echo "$body" | jq -r '.token')
+        if [ "$token" = "null" ]; then
+             echo "Debug: Token is null in response" >&2
+        fi
+        echo "$token"
+    else
+        echo "null"
+    fi
 }
 
 # 1. Try to login with Target Credentials first (in case already set)
@@ -129,11 +152,18 @@ if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
     
     # Update Email/Name for User 1 (Admin)
     # Note: NPM User ID 1 is the default admin.
+    # Update Admin Email/Name
     echo "Updating Admin Email/Name..."
-    UPDATE_USER_RESP=$(curl -s -X PUT "${NPM_API_BASE}/users/1" \
+    UPDATE_USER_RAW=$(curl -s -w "\n%{http_code}" -X PUT "${NPM_API_BASE}/users/1" \
         -H "Authorization: Bearer ${NPM_TOKEN}" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg email "$NPM_ADMIN_EMAIL" --arg name "Administrator" '{name: $name, email: $email}')")
+    
+    UPDATE_USER_RESP=$(echo "$UPDATE_USER_RAW" | sed '$d')
+    UPDATE_USER_STATUS=$(echo "$UPDATE_USER_RAW" | tail -n 1)
+
+    echo "Debug: Update User Response Status: $UPDATE_USER_STATUS" >&2
+    echo "Debug: Update User Response Body: $UPDATE_USER_RESP" >&2
     
     # Check if update was successful (basic check if email is in response)
     if echo "$UPDATE_USER_RESP" | grep -q "$NPM_ADMIN_EMAIL"; then
@@ -145,10 +175,16 @@ if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
 
     # Update Password for User 1
     echo "Updating Admin Password..."
-    UPDATE_PASS_RESP=$(curl -s -X PUT "${NPM_API_BASE}/users/1/auth" \
+    UPDATE_PASS_RAW=$(curl -s -w "\n%{http_code}" -X PUT "${NPM_API_BASE}/users/1/auth" \
         -H "Authorization: Bearer ${NPM_TOKEN}" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg secret "$NPM_ADMIN_PASSWORD" --arg current "$NPM_PASS" '{type: "password", secret: $secret, current: $current}')")
+
+    UPDATE_PASS_RESP=$(echo "$UPDATE_PASS_RAW" | sed '$d')
+    UPDATE_PASS_STATUS=$(echo "$UPDATE_PASS_RAW" | tail -n 1)
+
+    echo "Debug: Update Password Response Status: $UPDATE_PASS_STATUS" >&2
+    echo "Debug: Update Password Response Body: $UPDATE_PASS_RESP" >&2
         
     # Refresh Token with NEW credentials
     echo "Refreshing token with NEW credentials..."
