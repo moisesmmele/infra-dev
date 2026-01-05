@@ -23,12 +23,14 @@ if [ -f /.env ]; then
     . /.env
 fi
 
-# General Configuration
+# Technitium Configuration
 DNS_API_BASE="http://${TECHNITIUM_CONTAINER_NAME}:${DNS_WEB_PORT:-5380}/api"
-NPM_API_BASE="http://${NPM_CONTAINER_NAME}:${NPM_ADMIN_PORT:-81}/api"
 DNS_ZONE="${DNS_ZONE:-dev.local}"
+DNS_USER=admin
+DNS_PASS=admin
 
-# NPM Credentials
+# NPM Configuration
+NPM_API_BASE="http://${NPM_CONTAINER_NAME}:${NPM_ADMIN_PORT:-81}/api"
 NPM_ADMIN_EMAIL="${NPM_ADMIN_EMAIL:-admin@example.com}"
 NPM_ADMIN_PASSWORD="${NPM_ADMIN_PASSWORD:-changeme}"
 NPM_ADMIN_NAME="${NPM_ADMIN_NAME:-Administrator}"
