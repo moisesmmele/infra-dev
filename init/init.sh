@@ -195,6 +195,8 @@ if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
         echo "Uploading certificate..."
         UPLOAD_RESP=$(curl -s -X POST "${NPM_API_BASE}/nginx/certificates" \
             -H "Authorization: Bearer ${NPM_TOKEN}" \
+            -F "provider=other" \
+            -F "nice_name=${DNS_ZONE}" \
             -F "certificate=@${CERT_FILE}" \
             -F "certificate_key=@${KEY_FILE}")
         
