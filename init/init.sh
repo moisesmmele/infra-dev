@@ -28,6 +28,8 @@ DNS_USER="admin"
 DNS_PASS="admin"
 NPM_USER="admin@example.com"
 NPM_PASS="changeme"
+NPM_ADMIN_EMAIL="${NPM_ADMIN_EMAIL:-admin@example.com}"
+NPM_ADMIN_PASSWORD="${NPM_ADMIN_PASSWORD:-changeme}"
 
 # Helper: Wait for HTTP 200 OK
 # Validate required variables
@@ -99,13 +101,66 @@ fi
 wait_for_url "${NPM_API_BASE}/" || exit 1
 
 echo "Configuring Nginx Proxy Manager..."
-NPM_TOKEN=$(curl -s -X POST "${NPM_API_BASE}/tokens" \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n --arg u "$NPM_USER" --arg p "$NPM_PASS" '{identity: $u, secret: $p}')" | jq -r '.token')
 
+# Helper to get token
+get_npm_token() {
+    user="$1"
+    pass="$2"
+    curl -s -X POST "${NPM_API_BASE}/tokens" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg u "$user" --arg p "$pass" '{identity: $u, secret: $p}')" | jq -r '.token'
+}
+
+# 1. Try to login with Target Credentials first (in case already set)
+echo "Attempting login with TARGET credentials..."
+NPM_TOKEN=$(get_npm_token "$NPM_ADMIN_EMAIL" "$NPM_ADMIN_PASSWORD")
+
+# 2. If failed, try Default Credentials
 if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
-    echo "FATAL: Failed to login to NPM."
-    exit 1
+    echo "Target login failed. Attempting login with DEFAULT credentials..."
+    NPM_TOKEN=$(get_npm_token "$NPM_USER" "$NPM_PASS")
+    
+    if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
+        echo "FATAL: Failed to login to NPM with both partial and default credentials."
+        exit 1
+    fi
+
+    echo "Logged in with DEFAULT credentials. Updating admin account to TARGET credentials..."
+    
+    # Update Email/Name for User 1 (Admin)
+    # Note: NPM User ID 1 is the default admin.
+    echo "Updating Admin Email/Name..."
+    UPDATE_USER_RESP=$(curl -s -X PUT "${NPM_API_BASE}/users/1" \
+        -H "Authorization: Bearer ${NPM_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg email "$NPM_ADMIN_EMAIL" --arg name "Administrator" '{name: $name, email: $email}')")
+    
+    # Check if update was successful (basic check if email is in response)
+    if echo "$UPDATE_USER_RESP" | grep -q "$NPM_ADMIN_EMAIL"; then
+        echo "Admin email updated successfully."
+    else
+        echo "Error updating email: $UPDATE_USER_RESP"
+        # Continue anyway, might just be password update needed if email was same
+    fi
+
+    # Update Password for User 1
+    echo "Updating Admin Password..."
+    UPDATE_PASS_RESP=$(curl -s -X PUT "${NPM_API_BASE}/users/1/auth" \
+        -H "Authorization: Bearer ${NPM_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg secret "$NPM_ADMIN_PASSWORD" --arg current "$NPM_PASS" '{type: "password", secret: $secret, current: $current}')")
+        
+    # Refresh Token with NEW credentials
+    echo "Refreshing token with NEW credentials..."
+    NPM_TOKEN=$(get_npm_token "$NPM_ADMIN_EMAIL" "$NPM_ADMIN_PASSWORD")
+    
+    if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
+        echo "FATAL: Failed to login with NEW credentials after update."
+        exit 1
+    fi
+    echo "Successfully updated default admin account and logged in."
+else
+    echo "Logged in successfully with TARGET credentials."
 fi
 
 # Upload SSL
