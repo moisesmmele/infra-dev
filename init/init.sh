@@ -261,7 +261,6 @@ npm_upload_ssl() {
         if ! echo "$ALL_CERTS_RESP" | jq -e . >/dev/null 2>&1; then
             echo "ERROR: Failed to get certificates list. Response was not JSON:"
             echo "$ALL_CERTS_RESP"
-            # Proceeding might be dangerous if token is invalid, but we'll try upload if ID check fails naturally
         fi
 
         EXISTING_CERT_ID=$(echo "$ALL_CERTS_RESP" | jq -r ".[] | select(.domain_names[] == \"*.${DNS_ZONE}\") | .id" | head -n 1)
@@ -270,28 +269,50 @@ npm_upload_ssl() {
             echo "Certificate exists (ID: ${EXISTING_CERT_ID})."
             CERT_ID=$EXISTING_CERT_ID
         else
-            echo "Certificate not found. Uploading..."
+            echo "Certificate not found. Starting multi-step upload..."
             
-            # Use -w to capture status code
-            UPLOAD_RESP=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/nginx/certificates" \
+            # Step 1: Create the certificate entry (metadata only)
+            echo "DEBUG: Step 1 - Creating certificate entry..."
+            CREATE_PAYLOAD=$(jq -n --arg name "$DNS_ZONE" '{nice_name: $name, provider: "other"}')
+            
+            CREATE_RESP=$(curl -s -X POST "${NPM_API_BASE}/nginx/certificates" \
                 -H "Authorization: Bearer ${NPM_TOKEN}" \
-                -F "provider=other" \
-                -F "nice_name=${DNS_ZONE}" \
-                -F "certificate=@${CERT_FILE}" \
-                -F "certificate_key=@${KEY_FILE}")
+                -H "Content-Type: application/json" \
+                -d "$CREATE_PAYLOAD")
             
-            HTTP_BODY=$(echo "$UPLOAD_RESP" | sed '$d')
-            HTTP_STATUS=$(echo "$UPLOAD_RESP" | tail -n 1)
-
-            echo "DEBUG: Upload Response Status: $HTTP_STATUS"
-            echo "DEBUG: Upload Response Body: $HTTP_BODY"
+            CERT_ID=$(echo "$CREATE_RESP" | jq -r '.id')
             
-            CERT_ID=$(echo "$HTTP_BODY" | jq -r '.id')
             if [ "$CERT_ID" = "null" ] || [ -z "$CERT_ID" ]; then
-                echo "Error uploading cert: $HTTP_BODY"
+                echo "ERROR: Failed to create certificate entry. Response:"
+                echo "$CREATE_RESP"
                 CERT_ID=0
             else
-                echo "Certificate uploaded successfully (ID: $CERT_ID)."
+                echo "DEBUG: Certificate entry created (ID: $CERT_ID). Proceeding to upload files..."
+                
+                # Step 2: Upload the actual files
+                # Note: The endpoint is /nginx/certificates/{id}/upload
+                UPLOAD_RESP=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/nginx/certificates/${CERT_ID}/upload" \
+                    -H "Authorization: Bearer ${NPM_TOKEN}" \
+                    -F "certificate=@${CERT_FILE}" \
+                    -F "certificate_key=@${KEY_FILE}")
+                    
+                HTTP_BODY=$(echo "$UPLOAD_RESP" | sed '$d')
+                HTTP_STATUS=$(echo "$UPLOAD_RESP" | tail -n 1)
+                
+                echo "DEBUG: Upload status code: $HTTP_STATUS"
+                
+                if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
+                    echo "ERROR: File upload failed. Response:"
+                    echo "$HTTP_BODY"
+                    
+                    # Cleanup failed entry
+                    echo "DEBUG: deleting incomplete certificate entry..."
+                    curl -s -X DELETE "${NPM_API_BASE}/nginx/certificates/${CERT_ID}" \
+                        -H "Authorization: Bearer ${NPM_TOKEN}"
+                    CERT_ID=0
+                else
+                     echo "Certificate uploaded successfully (ID: $CERT_ID)."
+                fi
             fi
         fi
     else
