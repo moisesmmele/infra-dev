@@ -1,8 +1,7 @@
 #!/bin/bash
 # Nginx Proxy Manager setup
 
-mkdir -p data
-mkdir -p letsencrypt
+mkdir -p data letsencrypt
 
-# Note: NPM often runs as root, so standard permissions are usually fine.
-# If user mapping is needed later, add chown here.
+chmod -R 777 letsencrypt
+chmod -R 777 data
