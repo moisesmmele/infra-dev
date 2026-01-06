@@ -37,8 +37,9 @@ services:
         condition: service_started
       mailpit:
         condition: service_healthy
+      # Temporary "started" condition until healthcheck is fixed
       npm:
-        condition: service_healthy
+        condition: service_started
       technitium:
         condition: service_healthy
       homepage:

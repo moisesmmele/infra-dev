@@ -14,10 +14,10 @@ services:
     restart: unless-stopped
     networks:
       - dev_net
-    healthcheck:
-      test: [ "CMD", "/usr/bin/check-health" ]
-      interval: 10s
-      timeout: 3s
+#    healthcheck:
+#      test: [ "CMD", "/usr/bin/check-health" ]
+#      interval: 10s
+#      timeout: 3s
 
 networks:
   dev_net:
