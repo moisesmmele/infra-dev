@@ -44,9 +44,9 @@ This repository contains the Docker Compose configuration for a local developmen
     ```
 
 2.  **Run Setup Script**:
-    Run the setup script to prepare service directories.
+    Run the setup script to prepare service directories, configure host network, initialize data, etc.
     ```bash
-    ./setup.sh
+    chmod +x ./setup.sh && ./setup.sh
     ```
 
 3.  **Start Services**:
