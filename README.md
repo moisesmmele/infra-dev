@@ -2,6 +2,19 @@
 
 This repository contains the Docker Compose configuration for a local development infrastructure stack.
 
+> [!WARNING]
+> **CRITICAL: HOST NETWORK MODIFICATIONS**
+>
+> Do not run the `setup.sh` scripts on your personal workstation or laptop. This infrastructure is designed for a **dedicated server or VM only**.
+>
+> * **Network Override:** The `technitium/setup.sh` script detects your active interface and **overwrites your Netplan configuration** to enforce a static IP.
+> * **DNS Changes:** It disables `systemd-resolved` and modifies `/etc/resolv.conf` to free up Port 53.
+> * **Security:** Data directories are set to `chmod 777` for compatibility, which is unsafe for production environments exposed to the internet.
+> 
+> **DO NOT RUN THIS ON YOUR PERSONAL MACHINE (LAPTOP/DESKTOP).**
+> 
+> **Specially if you're not sure what you're doing.**
+
 ## Services
 
 | Service | Protocol/Port | Description |
