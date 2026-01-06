@@ -1,6 +1,8 @@
 services:
   npm:
-    image: jc21/nginx-proxy-manager:latest
+    # Using specific version instead of latest
+    # to avoid possible SSL cert upload issue
+    image: jc21/nginx-proxy-manager:2.10.4
     container_name: ${NPM_CONTAINER_NAME}
     ports:
       - "80:80"
