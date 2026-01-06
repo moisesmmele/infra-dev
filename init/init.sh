@@ -30,10 +30,10 @@ if [ -f /.env ]; then
 fi
 
 # Technitium Configuration
-TECHNIUM_API_BASE="http://${TECHNITIUM_CONTAINER_NAME}:${TECHNIUM_WEB_PORT:-5380}/api"
+TECHNITIUM_API_BASE="http://${TECHNITIUM_CONTAINER_NAME}:${TECHNITIUM_WEB_PORT:-5380}/api"
 DNS_ZONE="${DNS_ZONE:-dev.local}"
-TECHNIUM_USER=admin
-TECHNIUM_PASS=admin
+TECHNITIUM_USER=admin
+TECHNITIUM_PASS=admin
 
 # NPM Configuration
 NPM_API_BASE="http://${NPM_CONTAINER_NAME}:${NPM_ADMIN_PORT:-81}/api"
@@ -49,18 +49,18 @@ validate_env_vars() {
         exit 1
     fi
 
-    if [ -z "$TECHNIUM_USER" ]; then
-        echo "Error: TECHNIUM_USER is not set."
+    if [ -z "$TECHNITIUM_USER" ]; then
+        echo "Error: TECHNITIUM_USER is not set."
         exit 1
     fi
 
-    if [ -z "$TECHNIUM_PASS" ]; then
-        echo "Error: TECHNIUM_PASS is not set."
+    if [ -z "$TECHNITIUM_PASS" ]; then
+        echo "Error: TECHNITIUM_PASS is not set."
         exit 1
     fi
 
-    if [ -z "$TECHNIUM_WEB_PORT" ]; then
-        echo "Error: TECHNIUM_WEB_PORT is not set."
+    if [ -z "$TECHNITIUM_WEB_PORT" ]; then
+        echo "Error: TECHNITIUM_WEB_PORT is not set."
         exit 1
     fi
 
@@ -162,10 +162,10 @@ setup_dns() {
     echo "Configuring Technitium DNS..."
     
     # check if Technitium is ready
-    wait_for_url "${TECHNIUM_API_BASE}/user/login?user=${DNS_USER}&pass=${DNS_PASS}" || exit 1
+    wait_for_url "${TECHNITIUM_API_BASE}/user/login?user=${TECHNITIUM_USER}&pass=${TECHNITIUM_PASS}" || exit 1
 
     # Get Token
-    DNS_TOKEN=$(curl -s -X POST "${TECHNIUM_API_BASE}/user/login?user=${DNS_USER}&pass=${DNS_PASS}" | jq -r '.token')
+    DNS_TOKEN=$(curl -s -X POST "${TECHNITIUM_API_BASE}/user/login?user=${TECHNITIUM_USER}&pass=${TECHNITIUM_PASS}" | jq -r '.token')
 
     # Validate Token; exit if null
     if [ -z "$DNS_TOKEN" ] || [ "$DNS_TOKEN" = "null" ]; then
@@ -174,13 +174,13 @@ setup_dns() {
     fi
 
     # Check DNS Zone
-    ZONE_EXISTS=$(curl -s -X GET "${TECHNIUM_API_BASE}/zones/list?token=${DNS_TOKEN}&pageNumber=1&recordsPerPage=100" | jq -r ".response.zones[] | select(.name == \"${DNS_ZONE}\") | .name")
+    ZONE_EXISTS=$(curl -s -X GET "${TECHNITIUM_API_BASE}/zones/list?token=${DNS_TOKEN}&pageNumber=1&recordsPerPage=100" | jq -r ".response.zones[] | select(.name == \"${DNS_ZONE}\") | .name")
 
     if [ "$ZONE_EXISTS" = "$DNS_ZONE" ]; then
          echo "DNS Zone '$DNS_ZONE' already exists."
     else
          echo "Creating DNS Zone '$DNS_ZONE'..."
-     curl -s -X POST "${TECHNIUM_API_BASE}/zones/create?token=${DNS_TOKEN}&zone=${DNS_ZONE}&type=Primary" > /dev/null
+     curl -s -X POST "${TECHNITIUM_API_BASE}/zones/create?token=${DNS_TOKEN}&zone=${DNS_ZONE}&type=Primary" > /dev/null
     fi
 
     # Check Wildcard Record for DNS Zone
@@ -190,13 +190,13 @@ setup_dns() {
     
     # URL encode the domain for the query might be safer, but usually curl handles verify simple ones. Check if jq handles it.
     # We filter client-side with jq, so we list all records.
-    RECORD_EXISTS=$(curl -s -X GET "${TECHNIUM_API_BASE}/zones/records/list?token=${DNS_TOKEN}&zone=${DNS_ZONE}&pageNumber=1&recordsPerPage=1000" | jq -r ".response.records[] | select(.name == \"${WILDCARD_DOMAIN}\") | .name")
+    RECORD_EXISTS=$(curl -s -X GET "${TECHNITIUM_API_BASE}/zones/records/list?token=${DNS_TOKEN}&zone=${DNS_ZONE}&pageNumber=1&recordsPerPage=1000" | jq -r ".response.records[] | select(.name == \"${WILDCARD_DOMAIN}\") | .name")
 
     if [ "$RECORD_EXISTS" = "$WILDCARD_DOMAIN" ]; then
          echo "Wildcard record '$WILDCARD_DOMAIN' already exists."
     else
          echo "Creating Wildcard record '$WILDCARD_DOMAIN' pointing to $TARGET_IP..."
-         curl -s -X POST "${TECHNIUM_API_BASE}/zones/records/add?token=${DNS_TOKEN}&domain=${WILDCARD_DOMAIN}&type=A&value=${TARGET_IP}&zone=${DNS_ZONE}" > /dev/null
+         curl -s -X POST "${TECHNITIUM_API_BASE}/zones/records/add?token=${DNS_TOKEN}&domain=${WILDCARD_DOMAIN}&type=A&value=${TARGET_IP}&zone=${DNS_ZONE}" > /dev/null
     fi
     else
         echo "Warning: STATIC_IP not set. Skipping wildcard record creation."
