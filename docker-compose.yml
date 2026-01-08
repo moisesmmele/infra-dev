@@ -11,9 +11,9 @@ include:
 
 services:
   cert-server:
-    image: busybox:latest
+    image: python:alpine
     container_name: cert-server
-    command: httpd -f -p 80 -h /www -d # enable dir listing
+    command: python -m http.server 80 --directory /www
     volumes:
       - ./certs/public:/www
     networks:
@@ -51,10 +51,6 @@ services:
 
       homepage:
         condition: service_healthy
-
-      # Temporary "started" because no healthcheck defined
-      compass:
-        condition: service_started
 
       # Temporary "started" because no healthcheck defined
       hoppscotch:

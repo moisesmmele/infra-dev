@@ -1,9 +1,0 @@
-services:
-  compass:
-    image: haohanyang/compass-web:latest
-    container_name: ${COMPASS_CONTAINER_NAME}
-    ports:
-      - "${COMPASS_WEB_PORT}:8080"
-    networks:
-      - dev_net
-    restart: unless-stopped
