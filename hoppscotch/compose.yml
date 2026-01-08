@@ -4,6 +4,7 @@ services:
     container_name: ${HOPPSCOTCH_CONTAINER_NAME}
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-hoppscotch}
+      - WHITELISTED_ORIGINS=*
     depends_on:
       - postgres
     restart: unless-stopped
