@@ -326,7 +326,7 @@ EOF
 
     echo "Applying correct permissions for Netplan configuration..."
 
-    if ! sudo chmod 644 "$NETPLAN_CONFIG_FILE"; then
+    if ! sudo chmod 600 "$NETPLAN_CONFIG_FILE"; then
         echo "Warning: Failed to apply correct permissions for Netplan configuration."
         echo "This is not a critical error, but you should manually apply the correct permissions."
     fi
