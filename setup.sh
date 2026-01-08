@@ -87,9 +87,6 @@ setup_service_data_dirs() {
     # Homepage
     mkdir -p "$SCRIPT_DIR/homepage/config"
 
-    # Hoppscotch
-    mkdir -p "$SCRIPT_DIR/hoppscotch/pgdata"
-
     # Mailpit
     mkdir -p "$SCRIPT_DIR/mailpit/data"
 

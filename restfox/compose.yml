@@ -1,0 +1,14 @@
+services:
+  restfox:
+    image: flawiddsouza/restfox:latest
+    container_name: ${RESTFOX_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${RESTFOX_PORT}:4004"
+    networks:
+      - dev_net
+
+networks:
+  dev_net:
+    external: true
+    name: ${DOCKER_NETWORK_NAME}
