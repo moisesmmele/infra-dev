@@ -7,7 +7,6 @@ include:
   - npm/compose.yml
   - technitium/compose.yml
   - homepage/compose.yml
-  - compass/compose.yml
 
 services:
   cert-server:
@@ -66,4 +65,4 @@ services:
 networks:
   dev_net:
     external: true
-    name: ${NETWORK_NAME}
+    name: ${DOCKER_NETWORK_NAME}

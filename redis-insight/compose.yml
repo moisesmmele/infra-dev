@@ -19,4 +19,4 @@ services:
 networks:
   dev_net:
     external: true
-    name: ${NETWORK_NAME}
+    name: ${DOCKER_NETWORK_NAME}
