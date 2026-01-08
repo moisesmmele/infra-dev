@@ -34,22 +34,10 @@ REQUIRED_ENVS=(
 # FLAGS 
 
 SKIP_HOST_NETWORK=0
+IGNORE_WARNING=0
 NETWORK_REVERT_MODE=0
 
-# FUNCTIONS
-
 # PREFLIGHT CHECKS
-
-echo -e "\n\nThis script WILL break network connectivity even if it works."
-echo -e "(Because it will change your IP.)\n"
-echo -e "Do not run over SSH unless you know what you are doing.\n"
-sleep 2
-echo -e "Do NOT run this script on a personal system!\n"
-sleep 2
-echo -e "This is designed to run on a virtual machine specifically designed for development purposes.\n\n"
-sleep 5
-echo -e "\n\n\nYou have been warned! :D\n\n\n"
-sleep 2
 
 # create script dirs
 echo "Creating script directory..."
@@ -72,7 +60,23 @@ else
     echo "Resolv backup directory already exists."
 fi
 
+# FUNCTIONS
 
+show_warning_message() {
+    if [ "$IGNORE_WARNING" -eq 1 ]; then
+        return
+    fi
+    echo -e "\n\nThis script WILL break network connectivity even if it works."
+    echo -e "(Because it will change your IP.)\n"
+    echo -e "Do not run over SSH unless you know what you are doing.\n"
+    sleep 2
+    echo -e "Do NOT run this script on a personal system!\n"
+    sleep 2
+    echo -e "This is designed to run on a virtual machine specifically designed for development purposes.\n\n"
+    sleep 5
+    echo -e "\n\n\nYou have been warned! :D\n\n\n"
+    sleep 2
+}
 
 setup_service_data_dirs() {
     echo "Setting up directories with proper permissions..."
@@ -448,6 +452,9 @@ revert_host_network() {
 # parse arguments
 for arg in "$@"; do
     case $arg in
+        --ignore-warning)
+            IGNORE_WARNING=1
+            ;;
         --revert)
             NETWORK_REVERT_MODE=1
             ;;
@@ -468,6 +475,8 @@ if [ $NETWORK_REVERT_MODE -eq 1 ]; then
     revert_host_network
     exit 0
 fi
+
+show_warning_message
 
 load_and_verify_envs
 detect_docker
