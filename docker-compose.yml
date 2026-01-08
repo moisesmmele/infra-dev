@@ -3,17 +3,17 @@ include:
   - cloudbeaver/compose.yml
   - redis-insight/compose.yml
   - mailpit/compose.yml
-  # hoppscotch temporarily disabled
-  #  - hoppscotch/compose.yml
+  - hoppscotch/compose.yml
   - npm/compose.yml
   - technitium/compose.yml
   - homepage/compose.yml
+  - compass/compose.yml
 
 services:
   cert-server:
     image: busybox:latest
     container_name: cert-server
-    command: httpd -f -p 80 -h /www
+    command: httpd -f -p 80 -h /www -d # enable dir listing
     volumes:
       - ./certs/public:/www
     networks:
@@ -27,23 +27,43 @@ services:
       - ./.env:/.env
       - ./certs:/certs
     depends_on:
+
       # Temporary "started" condition until healthcheck is fixed
       portainer:
         condition: service_started
+
       cloudbeaver:
         condition: service_healthy
+
       # Temporary "started" condition until healthcheck is fixed
       redis-insight:
         condition: service_started
+
       mailpit:
         condition: service_healthy
+
       # Temporary "started" condition until healthcheck is fixed
       npm:
         condition: service_started
+
       technitium:
         condition: service_healthy
+
       homepage:
         condition: service_healthy
+
+      # Temporary "started" because no healthcheck defined
+      compass:
+        condition: service_started
+
+      # Temporary "started" because no healthcheck defined
+      hoppscotch:
+        condition: service_started
+
+      # Temporary "started" because no healthcheck defined
+      cert-server:
+        condition: service_started
+
     networks:
       - dev_net
 

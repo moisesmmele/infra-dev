@@ -93,6 +93,16 @@ validate_env_vars() {
         echo "Error: NPM_ADMIN_NICKNAME is not set."
         exit 1
     fi
+
+    if [ -z "$COMPASS_CONTAINER_NAME" ]; then
+        echo "Error: COMPASS_CONTAINER_NAME is not set."
+        exit 1
+    fi
+
+    if [ -z "$COMPASS_WEB_PORT" ]; then
+        echo "Error: COMPASS_WEB_PORT is not set."
+        exit 1
+    fi
 }
 
 # Helper func: Wait for HTTP 200 OK
@@ -383,6 +393,7 @@ services=(
     "$TECHNITIUM_CONTAINER_NAME;$TECHNITIUM_WEB_PORT;$CERT_ID;http"
     "$HOMEPAGE_CONTAINER_NAME;$HOMEPAGE_PORT;$CERT_ID;http"
     "cert-server;80;$CERT_ID;http"
+    "$COMPASS_CONTAINER_NAME;$COMPASS_WEB_PORT;$CERT_ID;http"
 )
 
 for service in "${services[@]}"; do
