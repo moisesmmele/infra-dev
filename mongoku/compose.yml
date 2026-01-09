@@ -1,0 +1,14 @@
+services:
+  mongoku:
+    image: huggingface/mongoku:latest
+    container_name: ${MONGOKU_CONTAINER_NAME}
+    ports:
+      - "${MONGOKU_PORT}:3100"
+    networks:
+      - dev_net
+    restart: unless-stopped
+
+networks:
+  dev_net:
+    external: true
+    name: ${DOCKER_NETWORK_NAME}

@@ -385,8 +385,8 @@ services=(
     "$TECHNITIUM_CONTAINER_NAME;$TECHNITIUM_WEB_PORT;$CERT_ID;http"
     "$HOMEPAGE_CONTAINER_NAME;$HOMEPAGE_PORT;$CERT_ID;http"
     "cert-server;80;$CERT_ID;http"
-
     "$RESTFOX_CONTAINER_NAME;$RESTFOX_PORT;$CERT_ID;http"
+    "$MONGOKU_CONTAINER_NAME;$MONGOKU_PORT;$CERT_ID;http"
 )
 
 for service in "${services[@]}"; do
