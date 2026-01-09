@@ -100,6 +100,9 @@ setup_service_data_dirs() {
     # Redis Insight
     mkdir -p "$SCRIPT_DIR/redis-insight/data"
 
+    # NATS NUI
+    mkdir -p "$SCRIPT_DIR/nats-nui/db"
+
     # Technitium data dirs
     mkdir -p "$SCRIPT_DIR/technitium/config"
     mkdir -p "$SCRIPT_DIR/technitium/data"

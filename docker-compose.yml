@@ -8,6 +8,7 @@ include:
   - technitium/compose.yml
   - homepage/compose.yml
   - mongoku/compose.yml
+  - nats-nui/compose.yml
 
 services:
   cert-server:
@@ -62,6 +63,10 @@ services:
 
       # Temporary "started" because no healthcheck defined
       mongoku:
+        condition: service_started
+
+      # Temporary "started" because no healthcheck defined
+      nats-nui:
         condition: service_started
 
     networks:
