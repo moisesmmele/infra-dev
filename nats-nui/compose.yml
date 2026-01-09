@@ -1,6 +1,6 @@
 services:
   nats-nui:
-    image: nats-nui/nui:latest
+    image: ghcr.io/nats-nui/nui:latest
     container_name: ${NATS_NUI_CONTAINER_NAME:-nats-nui}
     ports:
       - "${NATS_NUI_PORT:-31311}:31311"
