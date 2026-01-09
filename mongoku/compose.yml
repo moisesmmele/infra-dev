@@ -7,6 +7,8 @@ services:
     networks:
       - dev_net
     restart: unless-stopped
+    environment:
+      - MONGOKU_SERVER_ORIGIN="https://${MONGOKU_CONTAINER_NAME}.${DNS_ZONE}"
 
 networks:
   dev_net:
