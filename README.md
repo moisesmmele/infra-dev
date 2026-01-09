@@ -1,134 +1,101 @@
 # Docker Development Infrastructure
 
-This repository contains the Docker Compose configuration for a local development infrastructure stack.
+This repository contains a modular Docker Compose configuration for a local development infrastructure stack. It provides a suite of tools for database management, API testing, email testing, and container orchestration, all accessible through a unified dashboard and automatic reverse proxy system.
 
 > [!WARNING]
-> **CRITICAL: HOST NETWORK MODIFICATIONS**
+> **CRITICAL: SYSTEM MODIFICATIONS**
 >
-> Do not run the `setup.sh` scripts on your personal workstation or laptop. This infrastructure is designed for a **dedicated server or VM only**.
+> **Do not run the `setup.sh` script on your personal workstation or laptop.**
 >
-> * **Network Override:** The `technitium/setup.sh` script detects your active interface and **overwrites your Netplan configuration** to enforce a static IP.
-> * **DNS Changes:** It disables `systemd-resolved` and modifies `/etc/resolv.conf` to free up Port 53.
-> * **Security:** Data directories are set to `chmod 777` for compatibility, which is unsafe for production environments exposed to the internet.
-> 
-> **DO NOT RUN THIS ON YOUR PERSONAL MACHINE (LAPTOP/DESKTOP).**
-> 
-> **Specially if you're not sure what you're doing.**
+> This infrastructure is designed for a **dedicated development server or VM**. The setup script performs intrusive system modifications:
+> * **Network Override:** Detects your active interface and **overwrites your Netplan configuration** to enforce a static IP.
+> * **DNS Changes:** Disables `systemd-resolved` and modifies `/etc/resolv.conf` to free up Port 53 for the DNS server.
+> * **Permissions:** Creates data directories with loose permissions (`chmod 777`) to avoid container user mapping issues.
+>
+> **Run this only in a controlled, disposable environment (e.g., a local VM or Proxmox container).**
 
-## Services
+## 📦 Services
 
-| Service | Protocol/Port | Description |
-|---------|---------------|-------------|
-| **Portainer** | `:9000` | Container management UI |
-| **CloudBeaver** | `:8978` | Database management tool |
-| **Redis Insight** | `:5540` | Redis web UI |
-| **Mailpit** | `:8025` (Web), `:1025` (SMTP) | Email testing tool |
-| **Note: Hoppscotch** | `-` | API testing tool (Disabled by default) |
-| **Nginx Proxy Manager** | `:81` (Admin), `:80`/`:443` | Reverse proxy manager |
-| **Technitium DNS** | `:5380` (Web), `:53` (DNS) | DNS Server |
-| **Homepage** | `:3000` | Dashboard |
-| **Cert Server** | `:80` | Serves Root CA certificate |
-| **Init Service** | `-` | Automates post-boot configuration |
+The stack includes the following services, orchestrated via `docker-compose.yml` and individual service configurations:
 
-## Prerequisites
+| Service | Host Port(s) | Internal URL (Default) | Description |
+| :--- | :--- | :--- | :--- |
+| **Homepage** | `:3000` | `http://home.dev.local` | Unified dashboard for all services. |
+| **Nginx Proxy Manager** | `:81` (Admin)<br>`:80`, `:443` | `http://npm.dev.local` | Reverse proxy and SSL management. |
+| **Technitium DNS** | `:5380` (Web)<br>`:53` (DNS) | `http://dns.dev.local` | Local DNS Server & Ad Blocker. |
+| **Portainer** | `:9000`, `:9443` | `https://portainer.dev.local` | Docker container management UI. |
+| **CloudBeaver** | `:8978` | `http://database.dev.local` | Universal database management tool. |
+| **Redis Insight** | `:5540` | `http://redis.dev.local` | GUI for Redis. |
+| **Mongoku** | `:3100` | `http://mongoku.dev.local` | MongoDB web interface. |
+| **Mailpit** | `:8025` | `http://mail.dev.local` | Email testing tool (SMTP capture). |
+| **Restfox** | `:4004` | `http://restfox.dev.local` | Offline-first API testing client. |
+| **Cert Server** | `:80` (Direct) | `http://cert-server.dev.local` | Serves the generated Root CA certificate. |
 
-1.  **Docker** and **Docker Compose** installed.
-2.  **mkcert** installed (optional, for SSL generation in init service).
+## 🚀 Getting Started
 
-## Getting Started
+### 1. Configure Environment
+Copy the example environment file and configure your network settings.
+```bash
+cp .env.example .env
+```
+**Key Variables to Check in `.env`:**
+* `DNS_ZONE`: The local domain to use (default: `dev.local`).
+* `STATIC_IP`: The static IP you want this server to use.
+* `GATEWAY_IP`: Your network gateway.
+* `BASE_DNS`: Upstream DNS for the host (e.g., `1.1.1.1`).
 
-1.  **Configure Environment**:
-    Copy `.env.example` to `.env` and adjust variables if needed.
-    ```bash
-    cp .env.example .env
-    ```
+### 2. Run System Setup
+Execute the setup script to prepare the host. This script will install required directories and configure the host's networking (Static IP + DNS).
+```bash
+chmod +x ./setup.sh
+./setup.sh
+```
+*Use `./setup.sh --revert` if you need to restore the original network configuration.*
 
-2.  **Run Setup Script**:
-    Run the setup script to prepare service directories, configure host network, initialize data, etc.
-    ```bash
-    chmod +x ./setup.sh && ./setup.sh
-    ```
+### 3. Start Services
+Launch the stack.
+```bash
+docker compose up -d
+```
 
-3.  **Start Services**:
-    ```bash
-    docker compose up -d
-    ```
+## 🤖 Automation & Initialization
 
-## Initialization & Automation
+This stack includes a specialized **`init`** service that runs automatically after the core services are healthy. It handles the "glue" logic to make the environment ready-to-use without manual configuration.
 
-This stack includes an **Init Service** that runs automatically after all other containers are healthy.
-It performs the following actions:
-1.  **SSL Generation**: Automatically runs `mkcert` to generate certificates for the configured `DNS_ZONE`.
-2.  **CA Serving**: Hosts the Root CA certificate at `http://ca.<DNS_ZONE>` (e.g., `http://ca.dev.local`) for easy client installation.
-3.  **NPM Bootstrapping**:
-    -   Automatically creates the admin user if the database is empty (skips the welcome screen).
-    -   Configures credentials based on `.env` variables (`NPM_ADMIN_EMAIL`, etc.).
-4.  **DNS Configuration**:
-    -   Creates a primary zone matching `DNS_ZONE`.
-    -   Creates a **Wildcard A Record** (`*.dev.local`) pointing to `STATIC_IP` (if set), routing all subdomains to the host.
-5.  **Proxy Configuration**: Reads environment variables (e.g., `PORTAINER_CONTAINER_NAME`) to automatically create Proxy Hosts in Nginx Proxy Manager (NPM).
-    -   Uses the `DNS_ZONE` (e.g., `app.example.com`).
-    -   Configures SSL using the custom certificates generated.
+The `init/init.sh` script performs the following:
 
-## Data Persistence
+1.  **SSL Generation**:
+    * Uses `mkcert` to generate a valid Root CA and wildcard certificates for your `DNS_ZONE` (e.g., `*.dev.local`).
+    * Exposes the Root CA via the **Cert Server** for easy download and installation on your client machine.
 
-All data is persisted in local directories within the repository (e.g., `./portainer/data`). These directories are bind-mounted into the containers. Use `.gitignore` to keep them out of version control.
+2.  **DNS Configuration (Technitium)**:
+    * Waits for Technitium to accept connections.
+    * Logs in and creates the Primary Zone (`dev.local`).
+    * Creates a **Wildcard A Record** (`*.dev.local`) pointing to the server's `STATIC_IP`.
 
-## Modular Configuration
+3.  **Proxy Configuration (NPM)**:
+    * **Auto-Login**: Creates the admin user/password defined in `.env` (skips the initial setup screen).
+    * **Certificate Upload**: Uploads the generated `mkcert` SSL certificates to NPM.
+    * **Proxy Host Creation**: loops through the defined services and automatically creates Proxy Hosts in NPM. It maps the service name (e.g., `portainer`) to the domain (e.g., `portainer.dev.local`) and enables SSL.
 
-This project uses a modular setup system to prepare the environment for each service before Docker Compose starts.
+## 📂 Project Structure
 
-### Root Setup Script
+The project uses a modular structure to keep configurations clean:
 
-The root `setup.sh` script automates the initialization process by:
-1.  Creating the external network (`dev-net`) if it doesn't exist.
-2.  Scanning all service subdirectories (e.g., `./cloudbeaver`, `./technitium`).
-3.  Executing the `setup.sh` script inside each directory if found.
+* **`docker-compose.yml`**: The main entry point. It uses the `include` feature to pull in service configurations.
+* **Service Directories** (e.g., `/portainer`, `/npm`):
+    * `compose.yml`: Service-specific Docker definition.
+    * `data/`: Persistent storage (created by `setup.sh`).
+* **`setup.sh`**: The master host preparation script.
+* **`init/`**: Contains the Dockerfile and script for the automation container.
+* **`homepage/config/`**: Configuration files (`services.yaml`, `widgets.yaml`) for the dashboard.
 
-### Service-Specific Setup
+## 🔧 Client Setup
 
-You can create a `setup.sh` file in any service directory to handle pre-launch tasks. The script is executed **relative to the service directory**.
+To access your services using the domain names (e.g., `https://portainer.dev.local`), you must configure your client machine (your laptop/desktop):
 
-**Common Use Cases:**
-
-1.  **Creating Data Directories**:
-     Ensure directories exist and have the correct ownership before the container starts. This is critical for containers running as a specific user ID (UID).
-
-     *Example: `cloudbeaver/setup.sh`*
-     ```bash
-     #!/bin/bash
-     # Create data directory so it is owned by the current user (likely UID 1000)
-     # This prevents Docker from creating it as root, which causes permission denied errors for the container user.
-     mkdir -p data
-     ```
-
-2.  **Generating Configuration**:
-     Create dynamic config files based on environment variables.
-
-     *Example:*
-     ```bash
-     #!/bin/bash
-     # Generate auth config if not exists
-     if [ ! -f config/auth.json ]; then
-         echo '{"admin": true}' > config/auth.json
-     fi
-     ```
-
-3.  **Setting Specific UID/GID**:
-     If a container requires a specific UID (e.g., 5050) that implies `chmod`/`chown` might be needed.
-    
-     *Example:*
-     ```bash
-     #!/bin/bash
-     mkdir -p pgadmin_data
-     # Note: chmod/chown usually requires sudo or being the owner.
-     # If running strictly as user, ensure the directory is writable.
-     chmod 777 pgadmin_data
-     ```
-
-4.  **Advanced Network & System Configuration**:
-     Scripts can also handle host-level networking (e.g., setting static IPs) if minimal dependencies like `sudo` are available.
-
-     *Example: `technitium/setup.sh`*
-     Configures a static IP and gateway for the host if `BASE_DNS`, `STATIC_IP`, and `GATEWAY_IP` are provided in `.env`.
-     ```
+1.  **DNS**: Set your computer's DNS to the IP address of this server.
+2.  **Trust the CA**:
+    * Go to `http://<SERVER_IP>/root-ca.crt` (or via the Cert Server proxy if DNS is working).
+    * Download the certificate.
+    * Install it into your Trusted Root Certification Authorities store.
