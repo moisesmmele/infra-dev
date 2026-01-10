@@ -12,7 +12,7 @@ services:
     #      timeout: 10s
     #      retries: 3
     volumes:
-      - ./data:/data
+      - ./mounts/data:/data
     networks:
       - dev_net
 

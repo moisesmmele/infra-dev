@@ -36,6 +36,7 @@ REQUIRED_ENVS=(
 SKIP_HOST_NETWORK=0
 IGNORE_WARNING=0
 NETWORK_REVERT_MODE=0
+SKIP_DOCKER=0
 
 # PREFLIGHT CHECKS
 
@@ -82,33 +83,37 @@ setup_service_data_dirs() {
     echo "Setting up directories with proper permissions..."
 
     # CloudBeaver
-    mkdir -p "$SCRIPT_DIR/cloudbeaver/data"
+    mkdir -p "$PWD/cloudbeaver/mounts/data"
 
     # Homepage
-    mkdir -p "$SCRIPT_DIR/homepage/config"
+    mkdir -p "$PWD/homepage/mounts/config"
 
     # Mailpit
-    mkdir -p "$SCRIPT_DIR/mailpit/data"
+    mkdir -p "$PWD/mailpit/mounts/data"
 
     # Nginx Proxy Manager
-    mkdir -p "$SCRIPT_DIR/npm/data" "$SCRIPT_DIR/npm/letsencrypt"
-    chmod -R 777 "$SCRIPT_DIR/npm/data" "$SCRIPT_DIR/npm/letsencrypt"
+    mkdir -p "$PWD/npm/mounts/data" "$PWD/npm/mounts/letsencrypt"
+    chmod -R 777 "$PWD/npm/mounts/data" "$PWD/npm/mounts/letsencrypt"
 
     # Portainer
-    mkdir -p "$SCRIPT_DIR/portainer/data"
+    mkdir -p "$PWD/portainer/mounts/data"
 
     # Redis Insight
-    mkdir -p "$SCRIPT_DIR/redis-insight/data"
+    mkdir -p "$PWD/redis-insight/mounts/data"
 
     # NATS NUI
-    mkdir -p "$SCRIPT_DIR/nats-nui/db"
+    mkdir -p "$PWD/nats-nui/mounts/db"
 
     # Technitium data dirs
-    mkdir -p "$SCRIPT_DIR/technitium/config"
-    mkdir -p "$SCRIPT_DIR/technitium/data"
+    mkdir -p "$PWD/technitium/mounts/config"
+    mkdir -p "$PWD/technitium/mounts/data"
 }
 
 detect_docker() {
+    if [ "$SKIP_DOCKER" -eq 1 ]; then
+        echo "Skipping Docker detection."
+        return
+    fi
 	echo "Checking for an existing Docker installation..."
 	if command -v docker > /dev/null; then
 		echo "Docker is already installed."
@@ -139,6 +144,10 @@ load_and_verify_envs() {
 }
 
 configure_docker_network() {
+    if [ "$SKIP_DOCKER" -eq 1 ]; then
+        echo "Skipping Docker network configuration."
+        return
+    fi
     echo "Configuring Docker network..."
     if ! docker network inspect "$DOCKER_NETWORK_NAME" >/dev/null 2>&1; then
         echo "Creating network '$DOCKER_NETWORK_NAME' with subnet '$DOCKER_SUBNET'..."
@@ -220,6 +229,12 @@ revert_netplan_configuration() {
 }
 
 configure_host_network() {
+
+    if [ "$SKIP_HOST_NETWORK" -eq 1 ]; then
+        echo "Skipping host network configuration."
+        return
+    fi
+
     echo "Configuring host network..."
 
     if ! detect_compatible_networking; then
@@ -452,15 +467,24 @@ revert_host_network() {
 # parse arguments
 for arg in "$@"; do
     case $arg in
+        --skip-host-network)
+            SKIP_HOST_NETWORK=1
+            ;;
         --ignore-warning)
             IGNORE_WARNING=1
             ;;
         --revert)
             NETWORK_REVERT_MODE=1
             ;;
+        --skip-docker)
+            SKIP_DOCKER=1
+            ;;
         --help)
             echo "Usage: ./setup.sh [OPTIONS]"
             echo "Options:"
+            echo "  --skip-host-network  Skip host network configuration"
+            echo "  --skip-docker        Skip docker related configuration"
+            echo "  --ignore-warning     Ignore warning message"
             echo "  --revert     Revert host changes (restore networking and systemd-resolved)"
             echo "  --help       Show this help message"
             exit 0
@@ -485,9 +509,9 @@ configure_docker_network
 
 configure_host_network
 if [ $SKIP_HOST_NETWORK -eq 1 ]; then
-    echo "Something went wrong with host network configuration."
+    echo "Host network configuration was skipped."
+    echo "Something might have went wrong with host network configuration."
     echo "If your network is broken, you can revert the changes by running:"
     echo "./setup.sh --revert"
     echo "If it still doesn't work... Well good luck fren :D"
-    exit 1
 fi

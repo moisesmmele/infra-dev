@@ -5,7 +5,7 @@ services:
     ports:
       - "${NATS_NUI_PORT:-31311}:31311"
     volumes:
-      - ./db:/db
+      - ./mounts/db:/db
     restart: unless-stopped
     networks:
       - dev_net

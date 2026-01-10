@@ -8,7 +8,7 @@ services:
     command: -H unix:///var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/data
+      - ./mounts/data:/data
     restart: unless-stopped
     # Healthcheck temporarily disabled
     #    healthcheck:

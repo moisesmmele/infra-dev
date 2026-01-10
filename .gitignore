@@ -2,16 +2,7 @@
 .env
 
 # Data directories (bind mounts)
-/portainer/data/
-/cloudbeaver/data/
-/redis-insight/data/
-/mailpit/data/
-/npm/data/
-/npm/letsencrypt/
-/technitium/config/
-/technitium/data/
-/nats-nui/db/
-/homepage/config/
+*/mounts/
 
 # OS generated files
 .DS_Store

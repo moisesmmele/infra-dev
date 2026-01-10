@@ -9,8 +9,8 @@ services:
       - "443:443"
       - "${NPM_WEB_PORT}:81"
     volumes:
-      - ./data:/data
-      - ./letsencrypt:/etc/letsencrypt
+      - ./mounts/data:/data
+      - ./mounts/letsencrypt:/etc/letsencrypt
     restart: unless-stopped
     networks:
       - dev_net

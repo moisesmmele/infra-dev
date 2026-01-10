@@ -3,7 +3,7 @@ services:
     image: axllent/mailpit:latest
     container_name: ${MAILPIT_CONTAINER_NAME}
     volumes:
-      - ./data:/data
+      - ./mounts/data:/data
     environment:
       - MP_DATABASE=/data/mailpit.db
     restart: unless-stopped

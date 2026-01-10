@@ -10,8 +10,8 @@ services:
       - "53:53/tcp"
       - "${TECHNITIUM_WEB_PORT}:5380"
     volumes:
-      - ./config:/etc/dns
-      - ./data:/var/lib/dns
+      - ./mounts/config:/etc/dns
+      - ./mounts/data:/var/lib/dns
     environment:
       - DNS_SERVER_DOMAIN_ADDRESS=0.0.0.0
     restart: unless-stopped

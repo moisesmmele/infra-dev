@@ -1,14 +1,15 @@
 include:
+  # currently disabled
+  # - homepage/compose.yml
+  # - redis-insight/compose.yml
+  # - cloudbeaver/compose.yml
   - portainer/compose.yml
-  - cloudbeaver/compose.yml
-  - redis-insight/compose.yml
+  - technitium/compose.yml
+  - npm/compose.yml
+  - nats-nui/compose.yml
+  - mongoku/compose.yml
   - mailpit/compose.yml
   - restfox/compose.yml
-  - npm/compose.yml
-  - technitium/compose.yml
-  - homepage/compose.yml
-  - mongoku/compose.yml
-  - nats-nui/compose.yml
 
 services:
   cert-server:
@@ -23,51 +24,36 @@ services:
 
   init:
     build: ./init
+    container_name: init
+    command: bash /init.sh
     volumes:
       - ./init/init.sh:/init.sh
       - ./.env:/.env
       - ./certs:/certs
     depends_on:
-
-      # Temporary "started" condition until healthcheck is fixed
       portainer:
-        condition: service_started
-
-      cloudbeaver:
-        condition: service_healthy
-
-      # Temporary "started" condition until healthcheck is fixed
-      redis-insight:
-        condition: service_started
-
-      mailpit:
-        condition: service_healthy
-
-      # Temporary "started" condition until healthcheck is fixed
+        condition: service_started 
       npm:
-        condition: service_started
-
-      technitium:
-        condition: service_healthy
-
-      homepage:
-        condition: service_healthy
-
-      # Temporary "started" because no healthcheck defined
+        condition: service_started # Should be healthy
       restfox:
         condition: service_started
-
-      # Temporary "started" because no healthcheck defined
       cert-server:
         condition: service_started
-
-      # Temporary "started" because no healthcheck defined
       mongoku:
         condition: service_started
-
-      # Temporary "started" because no healthcheck defined
       nats-nui:
         condition: service_started
+      technitium:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      # Currently disabled
+      # homepage:
+      #   condition: service_healthy
+      # redis-insight:
+      #  condition: service_started
+      # cloudbeaver:
+      #   condition: service_healthy
 
     networks:
       - dev_net
