@@ -10,7 +10,8 @@
 /npm/letsencrypt/
 /technitium/config/
 /technitium/data/
-# /homepage/config/
+/nats-nui/db/
+/homepage/config/
 
 # OS generated files
 .DS_Store
