@@ -245,63 +245,119 @@ npm_create_user() {
 # upload certs
 npm_upload_ssl() {
     CERT_ID=0
-    CERT_FILE="/certs/${DNS_ZONE}.pem"
-    KEY_FILE="/certs/${DNS_ZONE}-key.pem"
+    local CERT_FILE="/certs/${DNS_ZONE}.pem"
+    local KEY_FILE="/certs/${DNS_ZONE}-key.pem"
 
-    if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
-        EXISTING_CERT_ID=$(curl -s -X GET "${NPM_API_BASE}/nginx/certificates" \
-            -H "Authorization: Bearer ${NPM_TOKEN}" | jq -r ".[] | select(.domain_names[] == \"*.${DNS_ZONE}\") | .id" | head -n 1)
+    # Early return if files are not found
+    if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
+        echo "WARNING: CERT_FILE or KEY_FILE not found. Skipping certificate upload."
+        return
+    fi
 
-        # this if statement assumes only one uploaded certificate per domain
-        # if multiple certificates are returned, condition fails and it uploads it AGAIN
-        # we should iterate through them and validate against the current $CERT_FILE (or $KEY_FILE?). 
-        # proposal: 
-        # If the current $CERT_FILE is not found, we should upload it again. 
-        # elseif only one is found, we should use the existing certificate. 
-        # elseif more than one is found, we should use the last uploaded one.
-        if [ -n "$EXISTING_CERT_ID" ] && [ "$EXISTING_CERT_ID" != "null" ]; then
-            echo "Certificate exists (ID: ${EXISTING_CERT_ID})."
-            CERT_ID=$EXISTING_CERT_ID
-        else
-            echo "Certificate not found. Starting upload..."
+    # Read local cert content for validation
+    local LOCAL_CERT=$(cat "$CERT_FILE")
+
+    # helper function to assemble the jq filter... Just to make the code more readable
+    jq_filter() {
+
+        # Check if domain_names array exists, then check if it contains our target
+        # expects jq to pass $target_domain
+        local domain_rule='(.domain_names // []) | any(. == $target_domain)'
+        
+        # Normalize both certs (remove whitespace) and compare
+        # expects jq to pass $target_cert
+        local cert_rule='((.meta.certificate // "") | gsub("\\s";"")) == ($target_cert | gsub("\\s";""))'
+        
+        # Return the final query string
+        echo ".[] | select($domain_rule and $cert_rule) | .id"
+    }
+
+    # This is bloated:
+    # It does a request to NPM's internal API, piping the result to jq as text
+    # jq parses the text into valid json and filters it by matching the domain and cert content
+    # sort -nr sorts the result in reverse (newest, highest id first)
+    # head -n 1 gets the first result (last cert uploaded)
+    # if no match returns null
+    #
+    # Terrible code, because we are doing way too much in a single unit of code.
+    # we cannot separate it because it would require a lot of serializing and deserializing
+    # since we are manipulating strings and relying on piping blackmagic
+    # but hey, thats the bash lifestyle I guess.
+    # Also we are assuming that the last cert uploaded is the one we want...
+
+    CERT_ID=$(
+        curl -s -X GET "${NPM_API_BASE}/nginx/certificates" \
+            -H "Authorization: Bearer ${NPM_TOKEN}" |
+        jq -r \
+            --arg target_domain "*.${DNS_ZONE}" \
+            --arg target_cert "$LOCAL_CERT" \
+            "$(jq_filter)" |
+        sort -nr |
+        head -n1
+    )
+
+    # Upload the certificate if no matches
+    if [ -z "$CERT_ID" ]; then
             
-            # Step 1: Create the certificate entry (metadata only)
-            echo "Creating certificate entry for: $DNS_ZONE"
-            CREATE_PAYLOAD=$(jq -n --arg name "$DNS_ZONE" '{nice_name: $name, provider: "other"}')
+        # Create the certificate entry (metadata only)
+        echo "Creating certificate entry for: $DNS_ZONE"
+
+        # jq for creating the json payload
+        local CREATE_PAYLOAD=$(jq -n --arg name "$DNS_ZONE" '{nice_name: $name, provider: "other"}')
             
-            CREATE_RESP=$(curl -s -X POST "${NPM_API_BASE}/nginx/certificates" \
+        # curl for creating the certificate entry
+        local CREATE_RESP=$(curl -s -X POST "${NPM_API_BASE}/nginx/certificates" \
                 -H "Authorization: Bearer ${NPM_TOKEN}" \
                 -H "Content-Type: application/json" \
                 -d "$CREATE_PAYLOAD")
-            
-            CERT_ID=$(echo "$CREATE_RESP" | jq -r '.id')
 
-            echo "Certificate entry created with ID: $CERT_ID"
-            if [ "$CERT_ID" = "null" ] || [ -z "$CERT_ID" ]; then
-                echo "ERROR: Failed to create certificate entry."
-                echo "Response: $CREATE_RESP"
-                CERT_ID=0
-            else
-                # Step 2: Upload the actual files
-                echo "Uploading certificate files for: $DNS_ZONE with ID: $CERT_ID"
-                UPLOAD_RESP=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/nginx/certificates/${CERT_ID}/upload" \
-                    -H "Authorization: Bearer ${NPM_TOKEN}" \
-                    -F "certificate=@${CERT_FILE}" \
-                    -F "certificate_key=@${KEY_FILE}")
-                    
-                HTTP_STATUS=$(echo "$UPLOAD_RESP" | tail -n 1)
-                
-                if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
-                    echo "ERROR: File upload failed. Status: $HTTP_STATUS"
-                    # Cleanup failed entry
-                    curl -s -X DELETE "${NPM_API_BASE}/nginx/certificates/${CERT_ID}" \
-                        -H "Authorization: Bearer ${NPM_TOKEN}" >/dev/null
-                    CERT_ID=0
-                else
-                     echo "Certificate uploaded successfully (ID: $CERT_ID)."
-                fi
-            fi
+        # extract the id from the response    
+        CERT_ID=$(echo "$CREATE_RESP" | jq -r '.id')
+
+        echo "Certificate entry created with ID: $CERT_ID"
+
+        # check if the certificate entry was created successfully
+        if [ "$CERT_ID" = "null" ] || [ -z "$CERT_ID" ]; then
+            echo "ERROR: Failed to create certificate entry."
+            echo "Skipping certificate upload."
+            
+            # for debugging purposes
+            echo "Response: $CREATE_RESP"
+            return
         fi
+
+        # upload certificate files
+        echo "Uploading certificate files for: $DNS_ZONE to entry with ID: $CERT_ID"
+
+        # curl for uploading the certificate files
+        local url="${NPM_API_BASE}/nginx/certificates/${CERT_ID}/upload"
+        local UPLOAD_RESP=$(curl -s -w "\n%{http_code}" -X POST $url \
+                -H "Authorization: Bearer ${NPM_TOKEN}" \
+                -H "Content-Type: multipart/form-data" \
+                -F "certificate=@${CERT_FILE}" \
+                -F "certificate_key=@${KEY_FILE}"
+                )
+
+        local HTTP_STATUS=$(echo "$UPLOAD_RESP" | tail -n 1)
+            
+        # check if the upload was successful
+        if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
+            
+            # Cleanup failed entry
+            curl -s -X DELETE "${NPM_API_BASE}/nginx/certificates/${CERT_ID}" \
+                -H "Authorization: Bearer ${NPM_TOKEN}" > /dev/null
+            
+            # for debugging purposes
+            echo "Response: $UPLOAD_RESP"
+
+            echo "Failed to upload certificate files. Certificate entry deleted."
+            
+            CERT_ID=0
+            return
+        fi
+        echo "Certificate uploaded successfully (ID: $CERT_ID)."
+    else
+        echo "Valid certificate already exists (ID: $CERT_ID)."
     fi
 }
 
