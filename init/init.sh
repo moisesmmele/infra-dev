@@ -252,6 +252,13 @@ npm_upload_ssl() {
         EXISTING_CERT_ID=$(curl -s -X GET "${NPM_API_BASE}/nginx/certificates" \
             -H "Authorization: Bearer ${NPM_TOKEN}" | jq -r ".[] | select(.domain_names[] == \"*.${DNS_ZONE}\") | .id" | head -n 1)
 
+        # this if statement assumes only one uploaded certificate per domain
+        # if multiple certificates are returned, condition fails and it uploads it AGAIN
+        # we should iterate through them and validate against the current $CERT_FILE (or $KEY_FILE?). 
+        # proposal: 
+        # If the current $CERT_FILE is not found, we should upload it again. 
+        # elseif only one is found, we should use the existing certificate. 
+        # elseif more than one is found, we should use the last uploaded one.
         if [ -n "$EXISTING_CERT_ID" ] && [ "$EXISTING_CERT_ID" != "null" ]; then
             echo "Certificate exists (ID: ${EXISTING_CERT_ID})."
             CERT_ID=$EXISTING_CERT_ID
@@ -259,6 +266,7 @@ npm_upload_ssl() {
             echo "Certificate not found. Starting upload..."
             
             # Step 1: Create the certificate entry (metadata only)
+            echo "Creating certificate entry for: $DNS_ZONE"
             CREATE_PAYLOAD=$(jq -n --arg name "$DNS_ZONE" '{nice_name: $name, provider: "other"}')
             
             CREATE_RESP=$(curl -s -X POST "${NPM_API_BASE}/nginx/certificates" \
@@ -267,13 +275,15 @@ npm_upload_ssl() {
                 -d "$CREATE_PAYLOAD")
             
             CERT_ID=$(echo "$CREATE_RESP" | jq -r '.id')
-            
+
+            echo "Certificate entry created with ID: $CERT_ID"
             if [ "$CERT_ID" = "null" ] || [ -z "$CERT_ID" ]; then
                 echo "ERROR: Failed to create certificate entry."
                 echo "Response: $CREATE_RESP"
                 CERT_ID=0
             else
                 # Step 2: Upload the actual files
+                echo "Uploading certificate files for: $DNS_ZONE with ID: $CERT_ID"
                 UPLOAD_RESP=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/nginx/certificates/${CERT_ID}/upload" \
                     -H "Authorization: Bearer ${NPM_TOKEN}" \
                     -F "certificate=@${CERT_FILE}" \
