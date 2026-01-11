@@ -185,6 +185,7 @@ generate_certs() {
 
     # Generate Root CA using openssl
     if (( ! $CA_EXISTS )); then
+        echo "Generating Root CA..."
         openssl req -x509 -new -nodes -newkey rsa:2048 -sha256 -days 3650 \
             -keyout "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}" \
             -out "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}" \
@@ -197,6 +198,7 @@ generate_certs() {
 
     # Generate CRT, CSR and Key for $DNS_ZONE using openSSL
     if (( ! $LEAF_EXISTS )); then
+        echo "Generating Leaf Certificate for $DNS_ZONE..."
         openssl req -new -nodes -newkey rsa:2048 \
             -keyout "${LEAF_DIR}/${LEAF_KEY}" \
             -out "${LEAF_DIR}/${LEAF_CSR}" \
