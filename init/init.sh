@@ -221,8 +221,8 @@ generate_certs() {
 }
 
 # Technitium DNS
-setup_dns() {
-    
+
+dns_authenticate() {
     # Get Token
     DNS_TOKEN=$(curl -s -X POST "${TECHNITIUM_API_BASE}/user/login?user=${TECHNITIUM_USER}&pass=${TECHNITIUM_PASS}" | jq -r '.token')
 
@@ -231,7 +231,9 @@ setup_dns() {
         echo "FATAL: Failed to login to Technitium DNS."
         exit 1
     fi
+}
 
+dns_create_zone() {
     # Check DNS Zone
     ZONE_EXISTS=$(curl -s -X GET "${TECHNITIUM_API_BASE}/zones/list?token=${DNS_TOKEN}&pageNumber=1&recordsPerPage=100" | jq -r ".response.zones[] | select(.name == \"${DNS_ZONE}\") | .name")
 
@@ -239,32 +241,37 @@ setup_dns() {
          echo "DNS Zone '$DNS_ZONE' already exists."
     else
          echo "Creating DNS Zone '$DNS_ZONE'..."
-     curl -s -X POST "${TECHNITIUM_API_BASE}/zones/create?token=${DNS_TOKEN}&zone=${DNS_ZONE}&type=Primary" > /dev/null
+         curl -s -X POST "${TECHNITIUM_API_BASE}/zones/create?token=${DNS_TOKEN}&zone=${DNS_ZONE}&type=Primary" > /dev/null
     fi
 
-    # Check Wildcard Record for DNS Zone
-    if [ -n "$STATIC_IP" ]; then
+}
+
+dns_create_record() {
+    
     TARGET_IP=${STATIC_IP%/*}
     WILDCARD_DOMAIN="*.${DNS_ZONE}"
-    
-    # URL encode the domain for the query might be safer, but usually curl handles verify simple ones. Check if jq handles it.
-    # We filter client-side with jq, so we list all records.
-    RECORD_EXISTS=$(curl -s -X GET "${TECHNITIUM_API_BASE}/zones/records/list?token=${DNS_TOKEN}&zone=${DNS_ZONE}&pageNumber=1&recordsPerPage=1000" | jq -r ".response.records[] | select(.name == \"${WILDCARD_DOMAIN}\") | .name")
+
+    local url="${TECHNITIUM_API_BASE}/zones/records/get?token=${DNS_TOKEN}&domain=${WILDCARD_DOMAIN}&zone=${DNS_ZONE}&pageNumber=1&recordsPerPage=1000"
+    RESPONSE=$(curl -s -X GET "${url}")
+    RECORD_EXISTS=$(echo "$RESPONSE" | jq -r ".response.records[] | select(.name == \"${WILDCARD_DOMAIN}\") | .name")
 
     if [ "$RECORD_EXISTS" = "$WILDCARD_DOMAIN" ]; then
          echo "Wildcard record '$WILDCARD_DOMAIN' already exists."
-    else
-         echo "Creating Wildcard record '$WILDCARD_DOMAIN' pointing to $TARGET_IP..."
-         curl -s -X POST "${TECHNITIUM_API_BASE}/zones/records/add?token=${DNS_TOKEN}&domain=${WILDCARD_DOMAIN}&type=A&value=${TARGET_IP}&zone=${DNS_ZONE}" > /dev/null
+         return
     fi
-    else
-        echo "Warning: STATIC_IP not set. Skipping wildcard record creation."
-    fi
-    
-    echo "Technitium DNS configured."
+
+    echo "Creating Wildcard record '$WILDCARD_DOMAIN' pointing to $TARGET_IP..."
+
+    curl -s -X POST "${TECHNITIUM_API_BASE}/zones/records/add?\
+        token=${DNS_TOKEN}&\
+        domain=${WILDCARD_DOMAIN}&\
+        type=A&\
+        value=${TARGET_IP}&\
+        zone=${DNS_ZONE}" > /dev/null    
 }
 
 # Nginx Proxy Manager
+
 npm_create_user() {    
     # Create Initial User (only works if DB is empty)
     echo "Attempting to create NPM initial user..."
@@ -309,7 +316,6 @@ npm_authenticate() {
     echo "Logged in successfully."
 }
 
-# upload certs
 npm_upload_ssl() {
     CERT_ID=0
 
@@ -410,7 +416,6 @@ npm_upload_ssl() {
     fi
 }
 
-# create proxy hosts
 npm_create_proxy_host() {
     CONTAINER=$1
     PORT=$2
@@ -488,8 +493,14 @@ npm_create_proxy_host() {
 echo "Starting initialization..."
 validate_env_vars
 generate_certs
+
+# Technitium DNS Setup
 wait_for_url "${TECHNITIUM_API_BASE}/" "Technitium DNS" || exit 1
-setup_dns
+dns_authenticate
+dns_create_zone
+dns_create_record
+
+# Nginx Proxy Manager Setup
 wait_for_url "${NPM_API_BASE}/" "NPM" || exit 1
 npm_create_user
 npm_authenticate
