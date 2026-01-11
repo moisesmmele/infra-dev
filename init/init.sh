@@ -189,7 +189,7 @@ generate_certs() {
         openssl req -x509 -new -nodes -newkey rsa:2048 -sha256 -days 3650 \
             -keyout "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}" \
             -out "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}" \
-            -subj "/C=BR/CN=Development Infrastructure Root CA"
+            -subj "/C=BR/CN=Development Infrastructure Root CA" > /dev/null 2>&1
 
         # Set permissions
         chmod 600 "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}"
@@ -203,7 +203,7 @@ generate_certs() {
             -keyout "${LEAF_DIR}/${LEAF_KEY}" \
             -out "${LEAF_DIR}/${LEAF_CSR}" \
             -subj "/CN=${DNS_ZONE}" \
-            -addext "subjectAltName = DNS:${DNS_ZONE},DNS:*.${DNS_ZONE}"
+            -addext "subjectAltName = DNS:${DNS_ZONE},DNS:*.${DNS_ZONE}" > /dev/null 2>&1
 
         # Sign CSR with Root CA and create Leaf Certificate
         openssl x509 -req -in "${LEAF_DIR}/${LEAF_CSR}" \
@@ -213,7 +213,7 @@ generate_certs() {
             -out "${LEAF_DIR}/${LEAF_CERT}" \
             -days 365 \
             -sha256 \
-            -copy_extensions copy
+            -copy_extensions copy > /dev/null 2>&1
 
         # Set permissions
         chmod 600 "${LEAF_DIR}/${LEAF_KEY}"
