@@ -19,8 +19,8 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 
-if ! command -v mkcert >/dev/null 2>&1; then
-    echo "Error: 'mkcert' is not installed. Please install it."
+if ! command -v openssl >/dev/null 2>&1; then
+    echo "Error: 'openssl' is not installed. Please install it."
     exit 1
 fi
 
