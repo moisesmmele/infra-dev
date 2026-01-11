@@ -128,34 +128,94 @@ wait_for_url() {
 
 # SSL Certificate Generation
 generate_certs() {
-    if [ -n "$DNS_ZONE" ]; then
-        echo "Checking for mkcert..."
-        if command -v mkcert >/dev/null 2>&1; then
-            # Set CAROOT to the mounted volume so the Root CA is persisted
-            export CAROOT=/certs
-            echo "mkcert found. CAROOT set to $CAROOT"
-            
-            if [ ! -f "/certs/${DNS_ZONE}.pem" ] || [ ! -f "/certs/${DNS_ZONE}-key.pem" ]; then
-                 echo "Generating SSL certificates for $DNS_ZONE..."
-                 mkcert -cert-file "/certs/${DNS_ZONE}.pem" -key-file "/certs/${DNS_ZONE}-key.pem" "$DNS_ZONE" "*.$DNS_ZONE"
-                 echo "Certificates generated."
-            else
-                 echo "Certificates already exist for $DNS_ZONE."
-            fi
-        else
-            echo "Warning: mkcert not installed in container. Skipping generation."
-        fi
 
-        # Copy Root CA to public folder for serving
-        echo "Preparing CA certificate for download..."
-        mkdir -p /certs/public
-        if [ -f "$CAROOT/rootCA.pem" ]; then
-            cp "$CAROOT/rootCA.pem" /certs/public/root-ca.crt
-            chmod 644 /certs/public/root-ca.crt
-            echo "Copied rootCA.pem to /certs/public/root-ca.crt"
+    local CA_EXISTS=0
+    local LEAF_EXISTS=0
+
+    # Certificate Configuration
+    CERTS_DIR="/certs"
+    ROOT_CA_DIR="${CERTS_DIR}/ca"
+    ROOT_CA_CERT_DIR="${ROOT_CA_DIR}/public"
+    ROOT_CA_KEY_DIR="${ROOT_CA_DIR}/private"
+    ROOT_CA_CERT="root-ca.crt"
+    ROOT_CA_KEY="root-ca.key"
+
+    # Domain Certs
+    LEAF_DIR="${CERTS_DIR}/${DNS_ZONE}"
+    LEAF_CSR="${DNS_ZONE}.csr"
+    LEAF_CERT="${DNS_ZONE}.crt"
+    LEAF_KEY="${DNS_ZONE}.key"
+
+
+    echo "Generating SSL certificates..."
+
+    # early return if certs dir is not mounted
+    if [ ! -d "$CERTS_DIR" ]; then
+        echo "Error: CERTS_DIR is not mounted. Skipping SSL certificate generation entirely."
+        return
+    fi
+
+    # early return if openssl is not installed
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo "Error: openssl is not installed. Skipping SSL certificate generation entirely."
+        return
+    fi
+
+    # generate sub dirs if they don't exist
+    mkdir -p "$ROOT_CA_CERT_DIR" "$ROOT_CA_KEY_DIR" "$LEAF_DIR"
+
+    # Check for existing Root CA crt and key
+    if [ -f "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}" ] && [ -f "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}" ]; then
+        echo "Info: Root CA already exists. Skipping Root CA generation."
+        CA_EXISTS=1
+    fi
+
+    # Verify if leaf cert exists for $DNS_ZONE
+    if (( $CA_EXISTS )) && [ -f "${LEAF_DIR}/${LEAF_CERT}" ]; then
+        # Verify if leaf cert matches current RootCA
+        if openssl verify -CAfile "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}" "${LEAF_DIR}/${LEAF_CERT}" >/dev/null 2>&1; then
+            echo "Info: Leaf certificate already exists and matches RootCA. Skipping Leaf certificate generation."
+            LEAF_EXISTS=1
+        else
+            echo "WARNING: Leaf certificate for $DNS_ZONE already exists but does not match RootCA."
+            echo "Skipping generation to avoid state mismatch."
+            return
         fi
-    else
-        echo "DNS_ZONE not set. Skipping SSL generation."
+    fi
+
+    # Generate Root CA using openssl
+    if (( ! $CA_EXISTS )); then
+        openssl req -x509 -new -nodes -newkey rsa:2048 -sha256 -days 3650 \
+            -keyout "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}" \
+            -out "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}" \
+            -subj "/C=US/CN=${DNS_ZONE}-Root-CA"
+
+        # Set permissions
+        chmod 600 "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}"
+        chmod 644 "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}"
+    fi
+
+    # Generate CRT, CSR and Key for $DNS_ZONE using openSSL
+    if (( ! $LEAF_EXISTS )); then
+        openssl req -new -nodes -newkey rsa:2048 \
+            -keyout "${LEAF_DIR}/${LEAF_KEY}" \
+            -out "${LEAF_DIR}/${LEAF_CSR}" \
+            -subj "/C=US/CN=${DNS_ZONE}" \
+            -addext "subjectAltName = DNS:${DNS_ZONE},DNS:*.${DNS_ZONE}"
+
+        # Sign CSR with Root CA and create Leaf Certificate
+        openssl x509 -req -in "${LEAF_DIR}/${LEAF_CSR}" \
+            -CA "${ROOT_CA_CERT_DIR}/${ROOT_CA_CERT}" \
+            -CAkey "${ROOT_CA_KEY_DIR}/${ROOT_CA_KEY}" \
+            -CAcreateserial \
+            -out "${LEAF_DIR}/${LEAF_CERT}" \
+            -days 365 \
+            -sha256 \
+            -copy_extensions copy
+
+        # Set permissions
+        chmod 600 "${LEAF_DIR}/${LEAF_KEY}"
+        chmod 644 "${LEAF_DIR}/${LEAF_CERT}"
     fi
 }
 
@@ -245,8 +305,6 @@ npm_create_user() {
 # upload certs
 npm_upload_ssl() {
     CERT_ID=0
-    local CERT_FILE="/certs/${DNS_ZONE}.pem"
-    local KEY_FILE="/certs/${DNS_ZONE}-key.pem"
 
     # Early return if files are not found
     if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
