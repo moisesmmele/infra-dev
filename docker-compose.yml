@@ -17,7 +17,7 @@ services:
     container_name: cert-server
     command: python -m http.server 80 --directory /www
     volumes:
-      - ./certs/ca/root-ca.crt:/www/root-ca.crt:ro
+      - ./certs/ca/public/:/www:ro
     networks:
       - dev_net
     restart: unless-stopped
