@@ -100,7 +100,7 @@ validate_env_vars() {
 # Helper func: Wait for HTTP 200 OK
 wait_for_url() {
     url="$1"
-    echo "Waiting for $url to be ready..."
+    pretty_name="$2"
     max_retries=60
     count=0
     while [ $count -lt $max_retries ]; do
@@ -108,7 +108,6 @@ wait_for_url() {
         status_code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
         
         if [ "$status_code" = "200" ]; then
-            echo "Success: $url is ready (HTTP 200)."
             return 0
         fi
         
@@ -120,7 +119,7 @@ wait_for_url() {
         count=$((count + 1))
     done
     
-    echo "Timeout waiting for $url. Last status: $status_code"
+    echo "Timeout waiting for $pretty_name. Last status: $status_code"
     # Try one verbose curl to show error detail to logs before failing
     curl -v "$url"
     return 1
@@ -223,11 +222,7 @@ generate_certs() {
 
 # Technitium DNS
 setup_dns() {
-    echo "Configuring Technitium DNS..."
     
-    # check if Technitium is ready
-    wait_for_url "${TECHNITIUM_API_BASE}/user/login?user=${TECHNITIUM_USER}&pass=${TECHNITIUM_PASS}" || exit 1
-
     # Get Token
     DNS_TOKEN=$(curl -s -X POST "${TECHNITIUM_API_BASE}/user/login?user=${TECHNITIUM_USER}&pass=${TECHNITIUM_PASS}" | jq -r '.token')
 
@@ -270,14 +265,9 @@ setup_dns() {
 }
 
 # Nginx Proxy Manager
-npm_create_user() {
-    
-    echo "Creating NPM user..."
-    
-    # check if NPM is ready
-    wait_for_url "${NPM_API_BASE}/" || exit 1
-
-    # Create User (only works if DB is empty)
+npm_create_user() {    
+    # Create Initial User (only works if DB is empty)
+    echo "Attempting to create NPM initial user..."
     CREATE_PAYLOAD=$(jq -n \
         --arg name "$NPM_ADMIN_NAME" \
         --arg email "$NPM_ADMIN_EMAIL" \
@@ -285,22 +275,37 @@ npm_create_user() {
         --arg pass "$NPM_ADMIN_PASSWORD" \
         '{name: $name, email: $email, nickname: $nick, auth: {type: "password", secret: $pass}}')
 
-    curl -s -X POST "${NPM_API_BASE}/users" \
+    # Perform Request with curl
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${NPM_API_BASE}/users" \
         -H "Content-Type: application/json" \
-        -d "$CREATE_PAYLOAD" > /dev/null
+        -d "$CREATE_PAYLOAD")
 
+    # These fuckers don't use proper HTTP status codes
+    # 200 and 201 are successful
+    # 404 means unauthorized
+    HTTP_STATUS=$(echo "$RESPONSE" | tail -n 1)
+
+    if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
+        echo "Initial user created using environment variables."
+    fi
+
+    if [ "$HTTP_STATUS" = "404" ]; then
+        echo "NPM already has registered users."
+    fi
+
+}
+
+npm_authenticate() {
     # Login with NPM Credentials
     echo "Logging in with NPM credentials..."
     NPM_TOKEN=$(curl -s -X POST "${NPM_API_BASE}/tokens" \
         -H "Content-Type: application/json" \
         -d "$(jq -n --arg u "$NPM_ADMIN_EMAIL" --arg p "$NPM_ADMIN_PASSWORD" '{identity: $u, secret: $p}')" \
         | jq -r '.token')
-
     if [ -z "$NPM_TOKEN" ] || [ "$NPM_TOKEN" = "null" ]; then
         echo "FATAL: Failed to login to NPM."
         exit 1
     fi
-
     echo "Logged in successfully."
 }
 
@@ -316,21 +321,6 @@ npm_upload_ssl() {
 
     # Read local cert content for validation
     local LOCAL_CERT=$(cat "$LEAF_DIR/$LEAF_CERT")
-
-    # helper function to assemble the jq filter... Just to make the code more readable
-    jq_filter() {
-
-        # Check if domain_names array exists, then check if it contains our target
-        # expects jq to pass $target_domain
-        local domain_rule='(.domain_names // []) | any(. == $target_domain)'
-        
-        # Normalize both certs (remove whitespace) and compare
-        # expects jq to pass $target_cert
-        local cert_rule='((.meta.certificate // "") | gsub("\\s";"")) == ($target_cert | gsub("\\s";""))'
-        
-        # Return the final query string
-        echo ".[] | select($domain_rule and $cert_rule) | .id"
-    }
 
     # This is bloated:
     # It does a request to NPM's internal API, piping the result to jq as text
@@ -348,10 +338,9 @@ npm_upload_ssl() {
     CERT_ID=$(
         curl -s -X GET "${NPM_API_BASE}/nginx/certificates" \
             -H "Authorization: Bearer ${NPM_TOKEN}" |
-        jq -r \
-            --arg target_domain "*.${DNS_ZONE}" \
-            --arg target_cert "$LOCAL_CERT" \
-            "$(jq_filter)" |
+          jq -r \
+            --arg target_domain "$DNS_ZONE" \
+            --arg target_cert "$LOCAL_CERT" ' .[] | select((.domain_names // [] | any(. == $target_domain)) and ((.meta.certificate // "" | gsub("\\s";"")) == ($target_cert | gsub("\\s";"")))) | .id ' |
         sort -nr |
         head -n1
     )
@@ -496,10 +485,14 @@ npm_create_proxy_host() {
 
 # Service Definitions
 
+echo "Starting initialization..."
 validate_env_vars
 generate_certs
+wait_for_url "${TECHNITIUM_API_BASE}/" "Technitium DNS" || exit 1
 setup_dns
+wait_for_url "${NPM_API_BASE}/" "NPM" || exit 1
 npm_create_user
+npm_authenticate
 npm_upload_ssl
 
 services=(
@@ -517,21 +510,16 @@ services=(
 )
 
 for service in "${services[@]}"; do
-    # Split the string into a temporary array named 'service_array'
     IFS=';' read -r -a service_array <<< "$service"
 
-    # Map to readable names (optional, but makes debugging easier)
     name="${service_array[0]}"
     port="${service_array[1]}"
     cert="${service_array[2]}"
     proto="${service_array[3]}"
 
-    # 2. FIX: Check if the CURRENT name is valid, not the global Portainer variable
     if [ -n "$name" ]; then 
         npm_create_proxy_host "$name" "$port" "$cert" "$proto"
     fi
-
-    echo "Created proxy host for $name"
-    echo "Sleeping for 2 seconds... (to ensure NPM has time to process... gimmicky i know)"
-    sleep 2
 done
+
+exit 0
