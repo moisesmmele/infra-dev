@@ -309,13 +309,13 @@ npm_upload_ssl() {
     CERT_ID=0
 
     # Early return if files are not found
-    if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
-        echo "WARNING: CERT_FILE or KEY_FILE not found. Skipping certificate upload."
+    if [ ! -f "$LEAF_DIR/$LEAF_CERT" ] || [ ! -f "$LEAF_DIR/$LEAF_KEY" ]; then
+        echo "WARNING: LEAF_CERT or LEAF_KEY not found. Skipping certificate upload."
         return
     fi
 
     # Read local cert content for validation
-    local LOCAL_CERT=$(cat "$CERT_FILE")
+    local LOCAL_CERT=$(cat "$LEAF_DIR/$LEAF_CERT")
 
     # helper function to assemble the jq filter... Just to make the code more readable
     jq_filter() {
@@ -394,8 +394,8 @@ npm_upload_ssl() {
         local UPLOAD_RESP=$(curl -s -w "\n%{http_code}" -X POST $url \
                 -H "Authorization: Bearer ${NPM_TOKEN}" \
                 -H "Content-Type: multipart/form-data" \
-                -F "certificate=@${CERT_FILE}" \
-                -F "certificate_key=@${KEY_FILE}"
+                -F "certificate=@${LEAF_DIR}/${LEAF_CERT}" \
+                -F "certificate_key=@${LEAF_DIR}/${LEAF_KEY}"
                 )
 
         local HTTP_STATUS=$(echo "$UPLOAD_RESP" | tail -n 1)
